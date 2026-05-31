@@ -1,0 +1,82 @@
+# ==============================================================================
+# Python Core & Virtual Environments
+# ==============================================================================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Local virtual environments (standard naming conventions)
+.venv/
+venv/
+ENV/
+env/
+
+# Distribution / packaging profiles
+bin/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ==============================================================================
+# JetBrains PyCharm IDE Settings
+# ==============================================================================
+# Ignores local user settings, caches, and runtime configurations
+.idea/
+*.iml
+
+# OPTIONAL EXCEPTION: If you work in a team and want to share common project 
+# run configurations or code style sheets via Git, uncomment the lines below:
+# !.idea/runConfigurations/
+# !.idea/codeStyles/
+# !.idea/scopes/
+
+# ==============================================================================
+# Environment Variables & Secrets (CRITICAL SECURITY)
+# ==============================================================================
+# Never commit raw credentials, API keys, or database passwords
+.env
+.env.*
+.secrets
+*.pem
+*.key
+
+# ==============================================================================
+# Testing, Automation, & Profiling
+# ==============================================================================
+# Inline testing artifacts and coverage reports
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+.ruff_cache/
+.mypy_cache/
+
+# ==============================================================================
+# Operating System & Diagnostic Files
+# ==============================================================================
+# General system clutter
+.DS_Store
+Thumbs.db
+pip-log.txt
+*.log

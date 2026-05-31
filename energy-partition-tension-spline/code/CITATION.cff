@@ -1,0 +1,41 @@
+cff-version: 1.2.0
+title: >-
+  Energy-Partition Tension Spline for Swap-Curve Construction
+  (reference implementation)
+message: >-
+  If you use this software, please cite both the software (this file)
+  and the accompanying paper.
+type: software
+authors:
+  - given-names: Ashutosh
+    family-names: Sinha
+    email: ajsinha@gmail.com
+abstract: >-
+  Reference implementation of the energy-partition criterion for selecting the
+  tension parameter in tension-spline term-structure construction. Reproduces all
+  results in the accompanying paper, including the bending-energy fraction phi(sigma),
+  the equipartition optimum, hedge-locality analysis, forward-space and multi-curve
+  SOFR/OIS constructions, analytic risk Jacobians, and benchmark comparisons. Includes
+  a module to fit the criterion to live FRED / U.S. Treasury historical data.
+keywords:
+  - yield curve construction
+  - term-structure interpolation
+  - tension spline
+  - energy-partition criterion
+  - hedge locality
+  - multi-curve SOFR/OIS
+  - reproducible research
+license: MIT
+version: 2.1.1
+date-released: "2026-05-31"
+preferred-citation:
+  type: article
+  title: >-
+    Swap Curve Construction and Optimization of the Tension Parameter:
+    An Energy-Partition Formulation
+  authors:
+    - given-names: Ashutosh
+      family-names: Sinha
+      email: ajsinha@gmail.com
+  year: 2026
+  notes: Working paper. SSRN preprint (add SSRN abstract ID / DOI once posted).

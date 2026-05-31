@@ -1,0 +1,7 @@
+# Core (tension_curve.py, benchmark.py, multicurve.py, jacobian_stability.py)
+numpy>=1.24
+matplotlib>=3.6
+
+# Only needed for fred_data.py (live historical retrieval)
+pandas>=1.5
+requests>=2.28

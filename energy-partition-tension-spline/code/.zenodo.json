@@ -1,0 +1,21 @@
+{
+  "title": "Energy-Partition Tension Spline for Swap-Curve Construction (reference implementation)",
+  "description": "Reference implementation accompanying the paper 'Swap Curve Construction and Optimization of the Tension Parameter: An Energy-Partition Formulation' (A. Sinha). Reproduces all results: the bending-energy fraction phi(sigma) and equipartition optimum, closed-form energies, hedge-locality analysis, forward-space and multi-curve SOFR/OIS constructions, analytic risk Jacobians and sigma* stability, and even-handed benchmarks against Hagan-West, Smith-Wilson, log-discount and piecewise-flat forwards. Includes a module to fit the criterion to live FRED / U.S. Treasury data over arbitrary historical windows. All empirical results use the real 22-May-2026 U.S. Treasury par-yield curve; no data are simulated.",
+  "creators": [
+    { "name": "Sinha, Ashutosh" }
+  ],
+  "keywords": [
+    "yield curve construction",
+    "term-structure interpolation",
+    "tension spline",
+    "energy-partition criterion",
+    "hedge locality",
+    "instantaneous forward curve",
+    "multi-curve SOFR/OIS",
+    "variational method",
+    "reproducible research"
+  ],
+  "upload_type": "software",
+  "license": "MIT",
+  "access_right": "open"
+}

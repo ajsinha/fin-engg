@@ -1,0 +1,1460 @@
+\documentclass[10pt]{article}
+\usepackage[a4paper,margin=2.4cm]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{caption}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+% ---- footer only; running header removed ----
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[C]{\thepage}
+
+% ---- centred small-caps Roman section titles ----
+\titleformat{\section}[block]{\normalfont\scshape\centering}{\Roman{section}.}{0.6em}{}
+\titleformat{\subsection}[block]{\normalfont\itshape}{\Alph{subsection}.}{0.6em}{}
+\renewcommand{\thesection}{\Roman{section}}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+\newtheorem{definition}{Definition}
+
+\captionsetup{labelfont=bf,textfont=it,labelsep=colon}
+
+\title{\vspace{-1.2cm}\Large\bfseries Swap Curve Construction and Optimization of the
+Tension Parameter: An Energy-Partition Formulation}
+\author{Ashutosh Sinha\\
+\small\texttt{ajsinha@gmail.com}}
+\date{}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+\begin{abstract}
+\noindent Polynomial splines have long been used for the construction of swap curves. They
+suffer, however, from excessive convexity, a lack of locality under perturbation of the
+input rates, and the possibility of negative implied forwards. Tension splines remedy these
+defects through a single shape parameter, but the choice of that parameter has remained
+largely heuristic. In this paper we place the tension spline on its proper physical footing
+as the equilibrium shape of a thin elastic beam held under longitudinal tension, and we
+derive in closed form the two energies stored by such a beam: a \emph{flexural} (bending)
+energy and an \emph{axial} (tension) energy. We show that the curvature ``smoothness'' norm
+used in the literature \emph{is} the flexural energy, and that the first-derivative norm
+\emph{is} the axial energy, so that the two are the complementary halves of one elastic
+energy rather than independent quantities. We then propose selecting the tension parameter
+by the \emph{bending-energy fraction}
+$\varphi(\sigma)=E_{\mathrm{bend}}/(E_{\mathrm{bend}}+E_{\mathrm{tens}})$, a dimensionless
+quantity that runs monotonically from one (cubic) to zero (linear). The neutral choice
+$\varphi(\sigma^\star)=\tfrac12$ corresponds to equipartition of elastic energy; the target
+$\varphi^\star$ provides a single, transparent dial through which a desk may express its
+trade-off between smoothness and locality. The criterion is invariant under rescaling of the
+rate and time axes, removing the unit dependence of earlier energy-based schemes. On the U.S.
+Treasury par-yield curve of $22$-May-$2026$ the criterion yields a unique optimum
+($\sigma^\star=4.86$ at equipartition) and, relative to the natural cubic spline, reduces the
+hedge-locality radius of the benchmark $5$-year node from $6.7$ years to $0.8$ year --- a
+factor of eight --- while suppressing the spurious long-end forward hump that the cubic
+manufactures from a flat $20$--$30$-year segment. Across $1{,}064$ weekly U.S. Treasury curves
+spanning 2006--2026, the selected tension tracks the rate regime smoothly without jumps, and the
+predicted inverse relationship between tension and hedge-locality radius holds out of sample with
+a log-correlation of $-0.99$.
+\end{abstract}
+
+\section{Introduction}
+A risk-free term structure is fundamental to the pricing of fixed-income securities and to
+the risk management of the same. The term structure is required to be a continuous function
+of time, with additional requirements on the continuity of its first and second derivatives.
+Given these constraints, computational procedures are needed to estimate the structure, and
+for those procedures the Treasury rates alone are not enough: to reflect the market a
+combination of instruments --- cash deposits, futures, swap rates --- is used to estimate the
+curve.
+
+Finding the right set of instruments is only half the problem. As Hagan and West~\cite{Hagan}
+articulate, there is no single best way to construct a term structure from a set of rates.
+It is commonly desired that the derived curve be smooth, that the interpolation be
+\emph{local}, that the implied forwards be both smooth and stable, and that hedges be as
+local as possible. Smoothness means the absence of kinks and spurious wiggles; market
+fidelity means the curve reproduces known market rates exactly; locality means that a
+perturbation of one input propagates to a bounded neighbourhood of the curve, which is
+precisely what permits a fixed-income portfolio to be hedged with a small, well-localised set
+of instruments.
+
+Parametric methods such as Nelson--Siegel produce a good overall shape but leave much to be
+desired in the accuracy of fit. Cubic regression splines, first applied to the term structure
+by McCulloch~\cite{McCulloch}, give the smoothest interpolant and have been shown to be at
+least as satisfactory as competing methods. Cubic splines are not, however, free of defects:
+they fail to guarantee monotonicity or convexity of the data~\cite{Anderson}, they are
+non-local, and for rate curves they can produce negative forwards. Tanggaard~\cite{Tanggaard}
+introduced non-parametric smoothing of the yield curve through a penalised least-squares
+estimator; Anderson~\cite{Anderson} extended this idea, modifying the penalty term to obtain
+hyperbolic tension splines. Kamada and Enkhbat~\cite{Kamada} present the tension spline as a
+generalisation that interpolates between the cubic (minimiser of the squared second
+derivative) and the linear (minimiser of the squared first derivative) splines, and so
+provides a convenient middle ground that preserves shape~\cite{Costantini}. Costantini, Kvasov
+and Manni~\cite{Costantini} treat the hyperbolic tension spline as the solution of a
+differential multipoint boundary-value problem; Renka~\cite{Renka} automates the choice of the
+tension factor subject to monotonicity and convexity constraints.
+
+The practical relevance of these defects is underscored by official practice. The U.S.
+Treasury, which publishes the most widely referenced government curve in the world, abandoned
+its quasi-cubic Hermite spline in December 2021 and now estimates its daily par-yield curve
+with a monotone convex spline~\cite{TreasuryMethod}, precisely to suppress the oscillation and
+non-locality of the cubic. The tension spline occupies exactly the continuum between these two
+regimes: it relaxes to the cubic at zero tension and tightens towards the shape-preserving,
+local, piecewise-linear limit as the tension grows, with a single parameter governing the
+position along that continuum.
+
+We make two methodological observations about this body of work. First, automated selection
+of the tension factor, while elegant, does not by itself respond to a practitioner's risk and
+hedging preferences; any defensible selection rule should expose those preferences as an
+explicit parameter rather than hide them inside a fixed constraint set. Second --- and this is
+the technical heart of the paper --- the ``elastic beam'' analogy that motivates the tension
+spline can be made fully rigorous. The tension spline is not merely \emph{like} a beam; it
+\emph{is} the equilibrium shape of a thin elastic beam under longitudinal tension, and the
+norms that the literature uses to score a curve are the literal flexural and axial energies of
+that beam. Recognising this collapses the two seemingly independent ``smoothness'' and
+``length'' penalties into the two halves of a single stored energy, and it suggests a natural,
+dimensionless, range-independent rule for selecting the tension. This paper revises and
+substantially extends an earlier treatment by the author, recasting that elastic-beam heuristic
+on a rigorous variational footing and replacing the ad hoc selection rule with the
+dimensionless, scale-invariant criterion developed here.
+
+A note on scope. For clarity the core construction is presented on a single curve; current
+market practice discounts on an overnight (OIS/SOFR) curve within a multi-curve framework
+\cite{Bianchetti,Henrard}, and Section~\ref{sec:multicurve} demonstrates the method directly in
+that setting. The interpolation theory developed below is agnostic to that choice: it acts
+downstream of the bootstrap and applies unchanged to any single curve, whether a projection
+curve or a discount curve. We also interpolate in the space of instantaneous forward rates, following the
+emphasis of Hagan and West~\cite{Hagan} on the importance of the interpolation variable; the
+forward space is the most demanding test of an interpolant because forwards expose, through the
+derivative, the oscillations that zero rates conceal.
+
+The remainder of the paper is organised as follows. Section~\ref{sec:fi} reviews fixed-income
+pricing in relation to vanilla swaps. Section~\ref{sec:cubic} reviews the natural cubic spline.
+Section~\ref{sec:tension} establishes the tension spline as a tensioned elastic beam and
+derives its variational characterisation. Section~\ref{sec:energy} derives the flexural and
+axial energies in closed form and presents the energy-partition selection criterion.
+Section~\ref{sec:validation} validates the criterion through forward positivity and hedge
+locality. Section~\ref{sec:fwd} extends the method to the instantaneous forward curve,
+Section~\ref{sec:nonunif} to per-segment non-uniform tension, and Section~\ref{sec:fwdnu}
+unifies the two. Section~\ref{sec:multicurve} embeds the method in a multi-curve SOFR/OIS
+construction. Section~\ref{sec:risk} derives the analytic risk Jacobians and the stability of the
+dial. Section~\ref{sec:empirical} benchmarks the method against production interpolators and
+characterises $\varphi^\star$. Section~\ref{sec:why} sets out the
+practical benefits, and Section~\ref{sec:discussion} discusses results and future directions.
+Appendix~\ref{app:nonunif} derives the non-uniform spline, Appendix~\ref{app:energy} the
+closed-form energy integrals, and Appendix~\ref{app:stable} the numerically stable evaluation.
+
+\section{Fixed-Income Pricing Basics}\label{sec:fi}
+A money-market account evolves as $dB(t)=r_t\,B(t)\,dt$, so that
+$B(t)=\exp\!\big(\int_0^t r_s\,ds\big)$ and the stochastic discount factor is
+$D(t,T)=\exp\!\big(-\int_t^T r_s\,ds\big)$, where $r_t$ is the instantaneous short rate. The
+zero-coupon bond price $P(t,T)$ is the risk-neutral expectation of $D(t,T)$ and equals
+$D(t,T)$ when the rate process is deterministic. With $\tau(t,T)$ the year fraction to
+maturity, the continuously compounded zero rate $R(t,T)$ satisfies
+\begin{equation}
+P(t,T)=e^{-R(t,T)\,\tau(t,T)},\qquad
+R(t,T)=-\frac{\ln P(t,T)}{\tau(t,T)}.
+\end{equation}
+Simply-compounded market rates (for example term SOFR) accrue on an Act/360 basis,
+\begin{equation}
+L(t,T)=\frac{1-P(t,T)}{\tau(t,T)\,P(t,T)} .
+\end{equation}
+The continuously compounded forward rate for $t\le T_1\le T_2$ is
+\begin{equation}
+F(t,T_1,T_2)=\frac{1}{\tau(T_1,T_2)}\ln\frac{P(t,T_1)}{P(t,T_2)},
+\end{equation}
+and for simple compounding
+\begin{equation}
+F(t,T_1,T_2)=\frac{1}{\tau(T_1,T_2)}\!\left(\frac{P(t,T_1)}{P(t,T_2)}-1\right). \label{eq:fwdsimple}
+\end{equation}
+As $T_2\to T_1$ the forward rate becomes the instantaneous forward
+$f(t,T)=-\partial_T\ln P(t,T)$, whence $P(t,T)=\exp\!\big(-\int_t^T f(t,u)\,du\big)$ and
+$F(t,T_1,T_2)=\tfrac{1}{T_2-T_1}\int_{T_1}^{T_2} f(t,u)\,du$.
+
+A vanilla payer swap exchanges a fixed leg for a floating leg from a future start date. Its
+defining attributes --- notional (used only for cash-flow calculation), fixed rate, coupon
+frequency, business-day convention, floating index, day-count, effective and maturity dates ---
+are standard. A swap has zero present value at inception; the swap rate is the fixed rate that
+makes it so. Bootstrapping the curve from cash, futures and swaps proceeds, following
+Hagan~\cite{Hagan}, through the recursion for the discount factor implied by the $n$-th swap,
+\begin{equation}
+B(t,t_n)=\frac{1-R_n\sum_{j=1}^{n-1}\theta_j B(t,t_j)}{1+R_n\theta_n},\qquad
+r_n=-\frac{1}{\tau_n}\ln B(t,t_n),
+\label{eq:bootstrap}
+\end{equation}
+where $R_n$ is the par swap rate, $\theta_j$ the coupon year fractions, and the unit in the
+numerator should strictly be the discount factor to the (two-business-day) effective date,
+here approximated by one. Short-end deposit and futures stubs are converted to continuously
+compounded spot rates through $f_{sl}=\theta_{sl}^{-1}\ln\big[(1+r_l\theta_l)/(1+r_s\theta_s)\big]$
+and $(1+F\theta_F)=e^{f\theta_f}$ respectively.
+
+Applying \eqref{eq:bootstrap}, or in the illustrative case below simply reading the published
+constant-maturity yields, produces the curve nodes used throughout this paper.
+
+For a current, fully reproducible illustration we take the U.S. Treasury par-yield curve of
+$22$-May-$2026$ (Table~\ref{tab:data}), as published in the Federal Reserve H.15
+release~\cite{H15}. The eleven constant-maturity points span one month to thirty years and
+carry two features that stress any interpolant: a front-end kink, the one-month yield
+($3.72\%$) sitting above the three-month ($3.68\%$) before the curve resumes rising, and a
+nearly flat long end, the twenty- and thirty-year yields almost coinciding at $5.06$--$5.07\%$.
+We interpolate the observed yield curve directly; treating the par yields as a zero curve for
+the purpose of deriving instantaneous forwards is an approximation made only for the diagnostic
+of Section~\ref{sec:validation}, and the interpolation theory is unchanged if one instead
+tensions a bootstrapped zero or forward curve.
+
+\begin{table}[t]\small\centering
+\caption{U.S. Treasury CMT par-yield curve, $22$-May-$2026$ (Federal Reserve H.15).}\label{tab:data}
+\begin{tabular}{lrrrrrrrrrrr}
+\toprule
+Tenor & 1M & 3M & 6M & 1Y & 2Y & 3Y & 5Y & 7Y & 10Y & 20Y & 30Y\\
+\midrule
+Yield (\%) & 3.72 & 3.68 & 3.79 & 3.86 & 4.13 & 4.18 & 4.27 & 4.41 & 4.56 & 5.06 & 5.07\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{The Natural Cubic Spline}\label{sec:cubic}
+For knots $x_0<x_1<\dots<x_{n-1}$ with data $y_i$, the natural cubic spline is the function
+that is cubic on each $[x_i,x_{i+1}]$, interpolates the data, and has continuous first and
+second derivatives. Writing $z_i=f''(x_i)$ and $h_i=x_{i+1}-x_i$, the requirement
+$f^{(\mathrm{iv})}=0$ on each interval makes $f''$ linear; the linear function taking the values
+$z_i$ at $x_i$ and $z_{i+1}$ at $x_{i+1}$ is
+\begin{equation}
+f_i''(x)=\frac{z_i}{h_i}(x_{i+1}-x)+\frac{z_{i+1}}{h_i}(x-x_i).
+\end{equation}
+Integrate once, then again, carrying two constants $p_i,q_i$:
+\[
+f_i'(x)=-\frac{z_i}{2h_i}(x_{i+1}-x)^2+\frac{z_{i+1}}{2h_i}(x-x_i)^2+p_i,\qquad
+f_i(x)=\frac{z_i}{6h_i}(x_{i+1}-x)^3+\frac{z_{i+1}}{6h_i}(x-x_i)^3+p_i(x-x_i)+q_i.
+\]
+Imposing $f_i(x_i)=y_i$ gives $q_i=y_i-z_ih_i^2/6$, and $f_i(x_{i+1})=y_{i+1}$ gives
+$p_i=(y_{i+1}-y_i)/h_i-h_i(z_{i+1}-z_i)/6$. Collecting powers of $(x-x_i)$ yields the Horner form
+\begin{equation}
+f_i(x)=y_i+(x-x_i)\big[C_i+(x-x_i)\big(B_i+(x-x_i)A_i\big)\big],
+\end{equation}
+\begin{equation}
+A_i=\frac{z_{i+1}-z_i}{6h_i},\quad B_i=\frac{z_i}{2},\quad
+C_i=\frac{y_{i+1}-y_i}{h_i}-\frac{h_i}{6}z_{i+1}-\frac{h_i}{3}z_i.
+\end{equation}
+By construction $f$ and $f''$ are already continuous at the interior knots (both sides share
+$y_i$ and $z_i$). The remaining condition is continuity of $f'$ at each $x_i$. From the integrated
+slope, the left interval $i-1$ gives
+$f_{i-1}'(x_i)=p_{i-1}+z_ih_{i-1}/2=(y_i-y_{i-1})/h_{i-1}+h_{i-1}(2z_i+z_{i-1})/6$, and the right
+interval $i$ gives $f_i'(x_i)=p_i-z_ih_i/2=(y_{i+1}-y_i)/h_i-h_i(2z_i+z_{i+1})/6$. Equating
+$f_{i-1}'(x_i)=f_i'(x_i)$ and multiplying by $6$ gives the diagonally dominant tridiagonal system,
+for $i=1,\dots,n-2$,
+\begin{equation}
+h_{i-1}z_{i-1}+2(h_{i-1}+h_i)z_i+h_i z_{i+1}
+=6\!\left(\frac{y_{i+1}-y_i}{h_i}-\frac{y_i-y_{i-1}}{h_{i-1}}\right),
+\end{equation}
+with the natural boundary conditions $z_0=z_{n-1}=0$. The cubic spline minimises
+$\int_a^b\!\big[f''(x)\big]^2\,dx$; since the curvature of a graph is
+$|f''|\,[1+(f')^2]^{-3/2}$ and $(f')^2$ is negligible for a rate curve, the cubic is
+effectively the minimum-curvature interpolant. Its smoothness is, however, bought at the cost
+of locality and --- for steep or kinked data --- of possible overshoot.
+
+\section{The Tension Spline as a Tensioned Elastic Beam}\label{sec:tension}
+\subsection{The physical model}
+The name ``spline'' is borrowed from the draughtsman's tool: a thin elastic lath threaded
+through fixed pins. Left free, the lath assumes the minimum-bending-energy shape --- the cubic
+spline. If the lath is additionally pulled taut by a longitudinal force $T$ at its ends, it
+straightens between the pins; in the limit of infinite tension it becomes the polygonal
+(linear) interpolant. This is precisely the behaviour wanted of a rate curve: a tunable
+departure from the over-convex cubic towards the economically conservative piecewise-linear
+shape. We therefore model the curve as a thin elastic beam of flexural rigidity $EI$ held under
+axial tension $T$, and we make the analogy exact rather than illustrative.
+
+Within the small-deflection (Euler--Bernoulli) theory, the elastic energy stored by such a beam
+over $[a,b]$ is the sum of a flexural term and an axial (tension) term,
+\begin{equation}
+\mathcal{E}[f]=\int_a^b\!\left[\tfrac12 EI\,\big(f''\big)^2+\tfrac12 T\,\big(f'\big)^2\right]dx .
+\label{eq:functional}
+\end{equation}
+The first term is the bending strain energy $\int M^2/(2EI)\,dx$ with bending moment
+$M=EI\,f''$; the second is the work done against the axial force as the beam elongates,
+$T$ times the second-order arc-length stretch $\tfrac12\int (f')^2\,dx$. To see the latter,
+the arc length of the graph is $\int\sqrt{1+(f')^2}\,dx=\int\big[1+\tfrac12(f')^2+O((f')^4)\big]dx$,
+so the elongation beyond the chord is $\tfrac12\int(f')^2\,dx$ to leading order, and the work
+done by the constant tension $T$ against this elongation is $\tfrac12 T\int(f')^2\,dx$. The two
+energies, the moments and the deflection are shown in Figure~\ref{fig:fbd}.
+
+For clarity, the symbols carry the following meaning. The function $f(x)$ is the interpolated
+rate curve itself: the height of the beam above the horizontal axis at abscissa $x$ (a tenor),
+i.e.\ the rate at that tenor; its first derivative $f'(x)$ is the slope of the curve and its
+second derivative $f''(x)$ is the curvature. The constant $E$ is the material's Young's modulus
+(stiffness of the beam material) and $I$ is the second moment of area of its cross-section; their
+product $EI$, the \emph{flexural rigidity}, measures how strongly the beam resists bending --- a
+large $EI$ yields a smooth, gently curved shape. The constant $T$ is the axial \emph{tension},
+the longitudinal force pulling the beam taut at its ends; a large $T$ straightens the beam
+between the knots. The bending moment $M(x)=EI\,f''(x)$ is the internal torque the beam carries
+at $x$. Only the dimensionless combination of the two physical constants matters for the curve
+shape: the \emph{tension parameter}
+\[
+\sigma=\sqrt{T/EI}\quad(\text{units of }1/x),
+\]
+which sets the single knob of the construction. When $\sigma=0$ (no tension, $T=0$) the
+functional \eqref{eq:functional} retains only the bending term and $f$ is the natural cubic
+spline; as $\sigma\to\infty$ (overwhelming tension) the axial term dominates and $f$ approaches
+the piecewise-linear interpolant. The limits $a,b$ are the first and last tenors, and the
+$\tfrac12$ factors are the usual quadratic-energy convention. Because only $\sigma$ enters the
+Euler--Lagrange equation below, the individual values of $E$, $I$ and $T$ never need to be
+specified --- they are absorbed into the one parameter $\sigma$.
+
+\begin{figure}[h]\centering
+\includegraphics[width=0.7\textwidth]{fig_fbd.png}
+\caption{The tension-spline element as a thin elastic beam under axial tension $T$. The bending
+moment $M=EI f''$ stores the flexural energy $\tfrac12 EI\!\int(f'')^2$ (the ``smoothness''
+norm); the slope $f'$ stores the axial energy $\tfrac12 T\!\int(f')^2$ (the ``length'' norm).
+These are the two halves of one stored elastic energy.}\label{fig:fbd}
+\end{figure}
+
+\begin{proposition}\label{prop:euler}
+The stationary curve of \eqref{eq:functional} subject to interpolation
+$f(x_i)=y_i$ satisfies, on each open interval $(x_i,x_{i+1})$,
+\begin{equation}
+EI\,f^{(\mathrm{iv})}-T\,f''=0
+\qquad\Longleftrightarrow\qquad
+f^{(\mathrm{iv})}-\sigma^2 f''=0,\qquad \sigma^2:=\frac{T}{EI}.
+\label{eq:euler}
+\end{equation}
+\end{proposition}
+\begin{proof}
+Perturb $f\mapsto f+\epsilon\,\delta f$ with $\delta f(x_i)=0$ at every knot (interpolation is
+fixed). Differentiating \eqref{eq:functional} and evaluating at $\epsilon=0$,
+\[
+\delta\mathcal{E}=\int_a^b\!\big[EI\,f''\,\delta f''+T\,f'\,\delta f'\big]\,dx .
+\]
+Integrate the flexural term by parts twice:
+\[
+\int_a^b EI\,f''\,\delta f''\,dx
+=\big[EI\,f''\,\delta f'\big]_a^b-\int_a^b EI\,f'''\,\delta f'\,dx
+=\big[EI\,f''\,\delta f'-EI\,f'''\,\delta f\big]_a^b+\int_a^b EI\,f^{(\mathrm{iv})}\,\delta f\,dx,
+\]
+and the axial term by parts once:
+$\int_a^b T f'\,\delta f'\,dx=\big[T f'\,\delta f\big]_a^b-\int_a^b T f''\,\delta f\,dx$.
+The boundary terms in $\delta f$ vanish because $\delta f=0$ at the knots; the remaining
+boundary terms $\big[EI f''\,\delta f'\big]$ vanish under the natural free-end condition
+$f''(a)=f''(b)=0$. Collecting the interior integrals,
+\[
+\delta\mathcal{E}=\int_a^b\!\big[EI\,f^{(\mathrm{iv})}-T\,f''\big]\,\delta f\,dx .
+\]
+Since this must vanish for every admissible $\delta f$, the fundamental lemma of the calculus of
+variations gives $EI f^{(\mathrm{iv})}-T f''=0$ on each open interval, i.e.\ \eqref{eq:euler}.
+\end{proof}
+
+Equation~\eqref{eq:euler} is the hyperbolic tension-spline equation of Schweikert~\cite{Schweikert}
+and Cline~\cite{Cline}; the tension parameter $\sigma$ that the literature introduces by fiat is
+here identified as $\sigma=\sqrt{T/EI}$, the square root of the dimensionless ratio of axial to
+flexural stiffness. As $\sigma\to0$ (no tension) the beam relaxes to the cubic; as
+$\sigma\to\infty$ it pulls taut to the linear interpolant.
+
+\subsection{Construction}
+The characteristic polynomial of \eqref{eq:euler} is $r^4-\sigma^2 r^2=r^2(r^2-\sigma^2)=0$,
+with roots $0,0,\pm\sigma$, so the general solution on $[x_i,x_{i+1}]$ is
+\[
+f(x)=a_i+b_i x+c_i\sinh(\sigma x)+d_i\cosh(\sigma x).
+\]
+Differentiating twice, $f''=\sigma^2\big(c_i\sinh\sigma x+d_i\cosh\sigma x\big)$, so $f''$ is a
+pure hyperbolic combination; writing $z_i:=f''(x_i)$ and $z_{i+1}:=f''(x_{i+1})$ and solving the
+$2\times2$ system for the hyperbolic part gives
+$f''(x)=\big[z_i\sinh(\sigma(x_{i+1}-x))+z_{i+1}\sinh(\sigma(x-x_i))\big]/\sinh(\sigma h_i)$,
+which is \eqref{eq:t2deriv} and already satisfies $f''(x_i)=z_i$, $f''(x_{i+1})=z_{i+1}$.
+Integrating $f''$ twice and fixing the two constants of integration by the interpolation
+conditions $f(x_i)=y_i$, $f(x_{i+1})=y_{i+1}$ removes the homogeneous linear part in favour of
+the chord, giving \eqref{eq:tspline}; one differentiation gives \eqref{eq:tderiv}. Explicitly,
+with $h_i=x_{i+1}-x_i$,
+\begin{align}
+f(x)&=\frac{z_i\sinh\!\big(\sigma(x_{i+1}-x)\big)+z_{i+1}\sinh\!\big(\sigma(x-x_i)\big)}
+{\sigma^2\sinh(\sigma h_i)}
++\Big(y_i-\tfrac{z_i}{\sigma^2}\Big)\frac{x_{i+1}-x}{h_i}
++\Big(y_{i+1}-\tfrac{z_{i+1}}{\sigma^2}\Big)\frac{x-x_i}{h_i},\label{eq:tspline}\\[2pt]
+f'(x)&=\frac{-z_i\cosh\!\big(\sigma(x_{i+1}-x)\big)+z_{i+1}\cosh\!\big(\sigma(x-x_i)\big)}
+{\sigma\sinh(\sigma h_i)}
++\frac{(y_{i+1}-y_i)-(z_{i+1}-z_i)/\sigma^2}{h_i},\label{eq:tderiv}\\[2pt]
+f''(x)&=\frac{z_i\sinh\!\big(\sigma(x_{i+1}-x)\big)+z_{i+1}\sinh\!\big(\sigma(x-x_i)\big)}
+{\sinh(\sigma h_i)}.\label{eq:t2deriv}
+\end{align}
+The construction makes $f$ and $f''$ continuous at the interior knots automatically (both sides
+share $y_i$ and $z_i$); the remaining $n-2$ unknowns $z_1,\dots,z_{n-2}$ are fixed by requiring
+continuity of $f'$. Evaluating \eqref{eq:tderiv} at $x_i^{-}$ (from interval $i-1$) and $x_i^{+}$
+(from interval $i$) and equating yields, after collecting the coefficients of $z_{i-1},z_i,z_{i+1}$,
+the diagonally dominant tridiagonal system, for $i=1,\dots,n-2$,
+\begin{equation}
+\alpha_{i-1}z_{i-1}+(\beta_{i-1}+\beta_i)z_i+\alpha_i z_{i+1}=\gamma_i-\gamma_{i-1},
+\label{eq:ttridiag}
+\end{equation}
+\begin{equation}
+\alpha_i=\frac{1}{h_i}-\frac{\sigma}{\sinh(\sigma h_i)},\quad
+\beta_i=\frac{\sigma\cosh(\sigma h_i)}{\sinh(\sigma h_i)}-\frac{1}{h_i},\quad
+\gamma_i=\frac{\sigma^2(y_{i+1}-y_i)}{h_i},
+\end{equation}
+with $z_0=z_{n-1}=0$. As $\sigma\to0$, Taylor expansion gives $\alpha_i\to -h_i/6$,
+$\beta_i\to h_i/3$ and $\gamma_i\to (y_{i+1}-y_i)/h_i$ (times $\sigma^2$, which cancels), so
+\eqref{eq:ttridiag} reduces to the natural-cubic system of Section~\ref{sec:cubic}; numerically
+at $\sigma=10^{-3}$ the two interpolants of Table~\ref{tab:data} agree to $3\times10^{-9}$. The
+implementation differs from the cubic only in the hyperbolic evaluations; for large $\sigma h_i$
+the formulae are reorganised into the stable $e^{-\sigma h}$ form of Appendix~\ref{app:stable} to
+avoid overflow. Figure~\ref{fig:curves} shows the linear, cubic, and two
+tension interpolants of the yield curve; smaller $\sigma$ lies near the cubic and larger
+$\sigma$ approaches the linear shape. Already in yield space the cubic overshoots: it lifts the
+flat $20$--$30$-year segment into a spurious hump of roughly five basis points peaking near
+twenty-four years, a feature absent from the data, whereas the tension curve hugs the flat
+segment.
+
+\begin{figure}[t]\centering
+\includegraphics[width=0.78\textwidth]{fig_curves.png}
+\caption{Linear, cubic, and tension-spline interpolation of the U.S. Treasury par-yield curve
+of Table~\ref{tab:data}. The tension curve at the equipartition optimum $\sigma^\star=4.86$
+(Section~\ref{sec:energy}) removes the cubic's spurious long-end hump while retaining a smooth
+belly.}\label{fig:curves}
+\end{figure}
+
+\section{Energy Decomposition and Tension Selection}\label{sec:energy}
+\subsection{The two energies are the two norms}
+The literature scores a candidate curve by a smoothness norm $\int(f'')^2$ and, in tension
+schemes, by a first-derivative norm weighted by $\sigma^2$. Proposition~\ref{prop:euler}
+identifies these immediately. Define, per unit flexural rigidity, the \emph{flexural} and
+\emph{axial} energies of the tensioned beam,
+\begin{equation}
+E_{\mathrm{bend}}(\sigma)=\tfrac12\!\int_0^T\!\big(f''_\sigma\big)^2\,dt,
+\qquad
+E_{\mathrm{tens}}(\sigma)=\tfrac12\,\sigma^2\!\int_0^T\!\big(f'_\sigma\big)^2\,dt .
+\label{eq:energies}
+\end{equation}
+The smoothness norm \emph{is} $2E_{\mathrm{bend}}$ and the $\sigma^2$-weighted length norm
+\emph{is} $2E_{\mathrm{tens}}$; their sum is the total stored elastic energy
+$\mathcal{E}[f_\sigma]$ of \eqref{eq:functional}. They are therefore not independent scores to
+be balanced against each other by an external rule, but the two complementary components of one
+energy. This observation also dissolves a circularity in earlier ``beam-energy'' arguments that
+compared a curvature norm against a separately constructed point-load deflection energy: by
+Clapeyron's theorem the work done by a load equals the strain energy it stores, so the two were
+estimates of the same flexural quantity, and the point-load route --- which requires inverting
+for the location and magnitude of a fictitious load --- is both redundant and ill-posed for the
+S-shaped segments a spline can produce. We discard it in favour of \eqref{eq:energies}.
+
+Both integrals in \eqref{eq:energies} are elementary. Using \eqref{eq:t2deriv} and the
+identities $\int_0^h\sinh^2(\sigma u)\,du=\tfrac{\sinh(2\sigma h)}{4\sigma}-\tfrac h2$ and
+$\int_0^h\sinh(\sigma(h-u))\sinh(\sigma u)\,du=\tfrac12\big(h\cosh(\sigma h)-\sigma^{-1}\sinh(\sigma h)\big)$,
+the per-segment flexural energy is
+\begin{equation}
+E^{(i)}_{\mathrm{bend}}=\frac{1}{2\sinh^2(\sigma h_i)}
+\left[(z_i^2+z_{i+1}^2)\!\left(\frac{\sinh(2\sigma h_i)}{4\sigma}-\frac{h_i}{2}\right)
++z_i z_{i+1}\!\left(h_i\cosh(\sigma h_i)-\frac{\sinh(\sigma h_i)}{\sigma}\right)\right].
+\label{eq:Eb}
+\end{equation}
+The axial energy admits the companion closed form \eqref{eq:Ea} of Appendix~\ref{app:energy}. Both expressions were verified against high-order quadrature to a
+relative error of $3\times10^{-7}$. The total energies are
+$E_{\mathrm{bend}}=\sum_i E^{(i)}_{\mathrm{bend}}$ and likewise for $E_{\mathrm{tens}}$.
+
+\subsection{The selection criterion}
+Every value of $\sigma$ already minimises its own functional \eqref{eq:functional}; the optimal
+tension is therefore a question \emph{outside} the variational principle, and a selection rule
+must supply an external preference. We make that preference dimensionless and explicit through
+the \emph{bending-energy fraction}
+\begin{equation}
+\varphi(\sigma)=\frac{E_{\mathrm{bend}}(\sigma)}{E_{\mathrm{bend}}(\sigma)+E_{\mathrm{tens}}(\sigma)}\in(0,1).
+\label{eq:phi}
+\end{equation}
+At $\sigma\to0$ the axial energy vanishes and $\varphi\to1$: the stored energy is pure
+curvature, the cubic limit. At $\sigma\to\infty$ the interior curvature vanishes and
+$\varphi\to0$: the energy is pure tension, the linear limit. The following proposition makes
+the well-posedness of the selection precise.
+
+\begin{proposition}[Properties of $\varphi$]\label{prop:phi}
+Write $t=\sigma^2$, $B(\sigma)=\int(f_\sigma'')^2$, $A(\sigma)=\int(f_\sigma')^2$, so
+$E_{\mathrm{bend}}=\tfrac12 B$, $E_{\mathrm{tens}}=\tfrac12 t A$ and
+$\varphi(\sigma)=B/(B+tA)$. Then
+\begin{enumerate}[leftmargin=2em,itemsep=1pt]
+\item[(i)] $\varphi$ is continuous on $(0,\infty)$, with $\lim_{\sigma\to0^+}\varphi=1$ and
+$\lim_{\sigma\to\infty}\varphi=0$;
+\item[(ii)] consequently, for every target $\varphi^\star\in(0,1)$ there exists
+$\sigma^\star>0$ with $\varphi(\sigma^\star)=\varphi^\star$;
+\item[(iii)] the minimum stored energy $g(t)=\min_f\{B[f]+tA[f]\}=B(\sigma)+tA(\sigma)$ is
+concave in $t$, and $A(\sigma)=g'(t)$ is non-increasing in $\sigma$;
+\item[(iv)] $\varphi$ is strictly decreasing wherever $A\,B+t\,g''(t)\,g(t)>0$; this holds
+throughout the range of interest, so $\sigma^\star$ is unique.
+\end{enumerate}
+\end{proposition}
+\begin{proof}
+\emph{(i)} The map $\sigma\mapsto f_\sigma$ is continuous (the tridiagonal system
+\eqref{eq:ttridiag} has coefficients analytic in $\sigma$ and is uniformly invertible), so
+$B,A$ are continuous and $\varphi$ is continuous where $B+tA>0$, i.e.\ for all $\sigma>0$. As
+$\sigma\to0^+$, $f_\sigma$ tends to the natural cubic with $0<B\to B_{\mathrm{cub}}<\infty$ and
+$A\to A_{\mathrm{cub}}<\infty$, so $tA\to0$ and $\varphi\to1$. As $\sigma\to\infty$, $f_\sigma$
+tends to the piecewise-linear interpolant: $A\to\int(f_{\mathrm{lin}}')^2>0$ is bounded below,
+while the curvature concentrates in boundary layers of width $O(1/\sigma)$ about the knots where
+$f''=O(\sigma)$, so $B=O(\sigma)$. Hence $tA/B=O(\sigma^2)/O(\sigma)\to\infty$ and
+$\varphi=1/(1+tA/B)\to0$.
+\emph{(ii)} Immediate from (i) and the intermediate value theorem.
+\emph{(iii)} For each fixed admissible $f$, $t\mapsto B[f]+tA[f]$ is affine with slope
+$A[f]\ge0$; $g$ is the pointwise minimum of this family and is therefore concave. By the
+envelope theorem $g'(t)=A[f_t]=A(\sigma)$, and concavity gives $g''=A'\le0$, so $A$ is
+non-increasing.
+\emph{(iv)} Let $R=tA/B=E_{\mathrm{tens}}/E_{\mathrm{bend}}$, so $\varphi=1/(1+R)$ and $\varphi$
+decreases iff $R$ increases. Writing $A=g'$ and $B=g-tg'$,
+\[
+R'(t)=\frac{d}{dt}\frac{tg'}{g-tg'}=\frac{g'(g-tg')+t\,g''g}{(g-tg')^2}=\frac{A\,B+t\,g''g}{B^2},
+\]
+which is positive precisely under the stated condition. Since $g''\le0$ the condition can fail
+only if the trade-off curve is strongly concave; on the curve of Table~\ref{tab:data} we verify
+$d\varphi/d\sigma<0$ at every point of a dense grid, and (i) guarantees the endpoints, so
+$\sigma^\star$ is unique.
+\end{proof}
+
+We state plainly what is and is not proved: parts (i)--(iii) hold for any non-degenerate data;
+the strict global monotonicity (iv) is reduced to an explicit sign condition that we verify
+numerically rather than assert as an unconditional theorem, since for adversarial knot
+configurations the trade-off curve $g$ could in principle be concave enough to violate it.
+Existence of $\sigma^\star$ is unconditional; uniqueness is guaranteed under (iv).
+
+\begin{definition}[Energy-partition tension]
+Given a target fraction $\varphi^\star\in(0,1)$, the optimal tension $\sigma^\star$ is the
+root of $\varphi(\sigma)=\varphi^\star$. The neutral choice $\varphi^\star=\tfrac12$
+corresponds to \emph{equipartition} of elastic energy between flexure and tension.
+\end{definition}
+
+Two further properties recommend \eqref{eq:phi} over earlier max-normalised rules. First, it is
+\emph{range-independent}: $\varphi$ is an intrinsic property of each $\sigma$ and does not
+depend on the window of $\sigma$ over which a normalisation is taken. Second, it is
+\emph{scale-invariant}.
+
+\begin{proposition}[Scale invariance]\label{prop:inv}
+$\varphi(\sigma)$ is invariant under rescaling of the rate axis, and under joint rescaling of
+the time axis with $\sigma$ carried in inverse-time units.
+\end{proposition}
+\begin{proof}
+\emph{Rate axis.} Replace $y_i\mapsto\alpha y_i$. The tridiagonal right-hand side
+$\gamma_i-\gamma_{i-1}$ in \eqref{eq:ttridiag} scales by $\alpha$ while the matrix is unchanged,
+so $z_i\mapsto\alpha z_i$ and hence $f\mapsto\alpha f$, $f'\mapsto\alpha f'$, $f''\mapsto\alpha f''$.
+Then $B=\int(f'')^2\mapsto\alpha^2 B$ and $A=\int(f')^2\mapsto\alpha^2 A$, so both energies scale
+by $\alpha^2$ and $\varphi=B/(B+\sigma^2A)$ is unchanged. This is the basis-points-versus-decimals
+invariance.
+\emph{Time axis.} Replace $x\mapsto\beta x$ (so $h_i\mapsto\beta h_i$) and $\sigma\mapsto\sigma/\beta$,
+which keeps every product $\sigma h_i$ fixed; the shape of $f$ in the $(x,y)$ plane is therefore
+unchanged, only horizontally stretched. Under $x\mapsto\beta x$ a derivative carries a factor
+$\beta^{-1}$: $f'\mapsto\beta^{-1}f'$, $f''\mapsto\beta^{-2}f''$, while $dx\mapsto\beta\,dx$. Thus
+$B=\int(f'')^2dx\mapsto\beta^{-4}\cdot\beta\,B=\beta^{-3}B$, and with $\sigma^2\mapsto\beta^{-2}\sigma^2$,
+$\sigma^2 A=\sigma^2\!\int(f')^2dx\mapsto\beta^{-2}\cdot\beta^{-2}\cdot\beta\,\sigma^2A=\beta^{-3}\sigma^2A$.
+Both numerator and denominator scale by $\beta^{-3}$, so $\varphi$ is unchanged. This is the
+days-versus-years invariance.
+\end{proof}
+
+This removes the unit dependence that afflicts an unnormalised energy criterion, under which a
+choice of basis points versus decimals, or days versus years, would silently move the optimum.
+The target $\varphi^\star$ is the single risk--hedging dial called for in the introduction:
+$\varphi^\star\!\to\!1$ requests a smoother, cubic-like curve; $\varphi^\star\!\to\!0$ buys
+locality and forward stability at the cost of curvature. The procedure is summarised as follows.
+
+\begin{enumerate}[leftmargin=2.2em,itemsep=1pt]
+\item Choose a target fraction $\varphi^\star$ (default $\tfrac12$).
+\item For trial $\sigma$, solve \eqref{eq:ttridiag} for $\{z_i\}$ and evaluate
+$E_{\mathrm{bend}}(\sigma)$ and $E_{\mathrm{tens}}(\sigma)$ in closed form via
+\eqref{eq:Eb} and \eqref{eq:Ea}.
+\item Form $\varphi(\sigma)$ from \eqref{eq:phi}.
+\item Solve $\varphi(\sigma^\star)=\varphi^\star$ by bisection (one-dimensional, monotone).
+\item Return $\sigma^\star$ and the curve $f_{\sigma^\star}$.
+\end{enumerate}
+
+\begin{figure}[t]\centering
+\includegraphics[width=0.74\textwidth]{fig_phi.png}
+\caption{The bending-energy fraction $\varphi(\sigma)$ for the curve of Table~\ref{tab:data}.
+It descends smoothly and monotonically from one (cubic) to zero (linear); equipartition
+($\varphi=\tfrac12$) is attained at $\sigma^\star=4.86$. The dotted lines mark
+$\varphi^\star=0.75$ ($\sigma=2.76$) and $\varphi^\star=0.25$ ($\sigma=8.69$). Contrast the
+monotone single crossing here with the spiky, range-dependent energy curves produced by the
+point-load construction.}\label{fig:phi}
+\end{figure}
+
+\subsection{Results}
+For the Treasury curve of Table~\ref{tab:data} the criterion gives $\sigma^\star=2.76$ at
+$\varphi^\star=0.75$, $\sigma^\star=4.86$ at the equipartition default, and $\sigma^\star=8.69$
+at $\varphi^\star=0.25$. Figure~\ref{fig:energy} plots the two component energies. The flexural
+energy is nearly flat in $\sigma$ --- the data's curvature is concentrated in the densely
+knotted short end, which does not straighten until very high tension --- while the axial energy
+climbs from zero and crosses $E_{\mathrm{bend}}$ exactly at the equipartition point. The
+crossover is therefore driven by the growth of the tension energy against a slowly varying
+bending energy, and the optimum is well separated from both spline limits.
+
+\begin{figure}[t]\centering
+\includegraphics[width=0.74\textwidth]{fig_energy.png}
+\caption{Flexural energy $E_{\mathrm{bend}}$ and axial energy $E_{\mathrm{tens}}$ (log scale,
+per unit $EI$) versus $\sigma$. The crossing $E_{\mathrm{bend}}=E_{\mathrm{tens}}$ is the
+equipartition optimum $\sigma^\star=4.86$.}\label{fig:energy}
+\end{figure}
+
+\section{Validation}\label{sec:validation}
+An interpolating spline reproduces every input instrument exactly, so the in-sample repricing
+error is identically zero and cannot discriminate between values of $\sigma$. The discriminating
+tests are the no-arbitrage and hedging properties that motivated the construction.
+
+\paragraph{Forward positivity and overshoot.} A necessary no-arbitrage condition is that the
+implied instantaneous forward $f(t)=y(t)+t\,y'(t)$ be non-negative. On the curve of
+Table~\ref{tab:data} both the cubic and the tension interpolant keep forwards comfortably
+positive (minimum $3.64\%$), as one expects of a steep upward curve; this data set does not
+trigger the negative-forward pathology, and we do not manufacture one. The discriminating
+feature lies elsewhere, in the long end (Figure~\ref{fig:forwards}). The flat $20$--$30$-year
+par segment implies a near-flat forward of about $5.07\%$, which the tension curve reproduces.
+The cubic instead fabricates a forward hump rising to almost $6\%$ near eighteen years and then
+declining to $4.7\%$ at thirty years --- a shape with no support in the data, the same
+overshoot that is visible directly in the yield curve of Figure~\ref{fig:curves}. The price of
+the tension curve's fidelity is a kink in the forward at twenty years, where the steep
+$10$--$20$-year segment meets the flat $20$--$30$-year one; this is the smoothness-versus-fidelity
+trade-off that $\varphi^\star$ governs, and it is also a reminder, in the spirit of Hagan and
+West~\cite{Hagan}, that when forward smoothness is itself the objective one should tension the
+forward curve rather than the yield curve --- the area-constrained construction we develop in
+Section~\ref{sec:fwd}.
+
+\begin{figure}[t]\centering
+\includegraphics[width=0.74\textwidth]{fig_forwards.png}
+\caption{Implied instantaneous forwards. The cubic manufactures a forward hump to nearly $6\%$
+and a declining long end unsupported by the flat $20$--$30$-year par data; the tension curve at
+$\sigma^\star$ tracks the data-implied flat forward, at the cost of a kink at twenty
+years.}\label{fig:forwards}
+\end{figure}
+
+\paragraph{Hedge locality.} The economically decisive property is locality: how far along the
+curve a perturbation of a single input instrument propagates. We perturb the forward at node
+$t_k$ by $\varepsilon$, rebuild the curve at fixed $\sigma$, and measure the influence
+$\partial f(t)/\partial r_k$ and the \emph{locality radius}
+\begin{equation}
+\rho_k=\frac{\int |t-t_k|\,\big|\partial f(t)/\partial r_k\big|\,dt}
+{\int \big|\partial f(t)/\partial r_k\big|\,dt},
+\label{eq:rho}
+\end{equation}
+the mean distance of the response from the perturbed node; smaller $\rho_k$ means a more local,
+more easily hedged curve. Figure~\ref{fig:locality} bumps the benchmark $5$-year node. The
+cubic response stays between ten and forty percent of its peak across the \emph{entire}
+thirty-year curve --- secondary lobes near thirteen and twenty-four years --- giving
+$\rho_5=6.7$ years, whereas the tension spline at $\sigma^\star$ decays roughly exponentially in
+$\sigma|t-t_k|$ and is effectively extinguished beyond ten years, confining the response to
+$\rho_5=0.8$ year, an eight-fold improvement. The gain is consistent across the belly of the
+curve: the locality ratio between cubic and tension ranges from about seven at the front to
+nine at two years, narrowing only at the sparsely knotted $20$--$30$-year end, where the
+ten-year gaps between nodes limit the locality attainable by any interpolant. The
+energy-partition tension thus delivers precisely the local hedges that the introduction posed
+as the goal, and does so through a single, interpretable parameter.
+
+The exponential decay has a clean physical reading. The influence of a perturbation is governed
+by the Green's function of the spline operator $\mathcal{L}=d^4/dx^4-\sigma^2 d^2/dx^2$, i.e.\ the
+solution of $\mathcal{L}\,G(x,x_k)=\delta(x-x_k)$. Away from the source this satisfies the
+homogeneous equation $G^{(\mathrm{iv})}-\sigma^2 G''=0$, whose decaying mode is $e^{-\sigma|x-x_k|}$.
+Thus $\sigma$ is an inverse screening length: a rate shock at $t_k$ is an evanescent disturbance
+that dies out over a distance $\sim1/\sigma$, which is exactly the hedge-locality radius
+$\rho_k$. In the untensioned ($\sigma\to0$) cubic limit the operator degenerates to
+$d^4/dx^4$, whose Green's function decays only algebraically and oscillates --- the long-range
+``ringing'' of Figure~\ref{fig:locality} --- so a shock propagates across the whole curve like an
+undamped wave. Tension plays the role of a restoring force that damps this propagation; raising
+$\sigma$ shortens the screening length and localises the hedge.
+
+\begin{figure}[t]\centering
+\includegraphics[width=0.74\textwidth]{fig_locality.png}
+\caption{Decay of the single-node influence $|\partial f/\partial r_k|$ (log scale) for a bump
+at the benchmark $5$-year node. The cubic (locality radius $\rho=6.7$ yr) propagates the
+perturbation across the whole curve; the tension spline at $\sigma^\star$ ($\rho=0.8$ yr)
+localises it within a few years.}\label{fig:locality}
+\end{figure}
+
+\section{Tensioning the Instantaneous Forward Curve}\label{sec:fwd}
+The validation of Section~\ref{sec:validation} exposed a structural point. Smoothness is a
+property of the interpolated variable and is degraded by differentiation: if the zero curve
+$r(t)$ is the $C^2$ tension spline, the instantaneous forward $f(t)=r(t)+t\,r'(t)$ is only
+$C^1$, and as $\sigma$ grows and $r$ approaches piecewise-linear, $f$ develops kinks at the
+knots. The three natural interpolation variables, linked by
+$I(t):=-\ln P(t)=r(t)\,t=\int_0^t f$, behave differently under tension in the high-$\sigma$
+limit: tensioning $r$ gives a kinked piecewise-linear forward; tensioning $I$ (the
+log-discount) gives $f=I'$, a piecewise-\emph{constant} forward (the familiar local
+``constant-forward'' rule); and tensioning $f$ itself keeps the forward a continuous $C^2$
+spline for every $\sigma$. Hence, \emph{if forward smoothness is the objective, the forward
+curve is the object to tension.}
+
+The forward is not observed pointwise; the market pins the discount factors, equivalently the
+integrals of $f$ over each interval. Tensioning the forward is therefore an \emph{area-constrained}
+variational problem: minimise the forward's own tension energy subject to reproducing every
+discount factor,
+\begin{equation}
+\min_{f}\ \int_{0}^{T}\!\Big[\tfrac12\big(f''\big)^2+\tfrac12\sigma^2\big(f'\big)^2\Big]\,dt
+\quad\text{s.t.}\quad
+\int_{t_{i-1}}^{t_i} f(u)\,du = I(t_i)-I(t_{i-1})=:a_i,\ \ i=1,\dots,m.
+\label{eq:fwdmin}
+\end{equation}
+With a multiplier $\lambda_i$ for each area constraint, form the Lagrangian
+\[
+\mathcal{L}[f,\lambda]=\int_0^T\!\Big[\tfrac12(f'')^2+\tfrac12\sigma^2(f')^2\Big]dt
+-\sum_{i=1}^m\lambda_i\Big(\int_{t_{i-1}}^{t_i}\!f\,du-a_i\Big).
+\]
+The constraint integral contributes $-\lambda_i$ to the variation on $(t_{i-1},t_i)$, while the
+energy term varies exactly as in Proposition~\ref{prop:euler} (integrate $f''\delta f''$ by parts
+twice and $\sigma^2 f'\delta f'$ once). Setting $\delta\mathcal{L}=0$ gives, on each interval, the
+Euler--Lagrange equation with a piecewise-constant forcing,
+\begin{equation}
+f^{(\mathrm{iv})}-\sigma^2 f''=\lambda_i \quad\text{on } (t_{i-1},t_i),
+\end{equation}
+whose solution is the homogeneous tension spline plus the particular solution
+$f_p=-\lambda_i t^2/(2\sigma^2)$ (since $f_p^{(\mathrm{iv})}=0$ and $-\sigma^2 f_p''=\lambda_i$).
+The $m$ multipliers are fixed by the $m$ area constraints, together with continuity of
+$f,f',f''$ across knots and the natural end conditions $f''=f'''=0$. In practice the problem is
+discretised on a fine grid $\{t_k\}$: with $D_1,D_2$ the first- and second-difference operators,
+the energies become the quadratic forms $\int(f')^2\approx f^{\!\top}\!D_1^{\!\top}D_1 f\,\Delta t=:f^{\!\top}\!K_t f$
+and $\int(f'')^2\approx f^{\!\top}\!K_b f$, and the area constraints become $Cf=a$ with $C_{ik}$ the
+length of grid cell $k$ inside interval $i$. Minimising $\tfrac12 f^{\!\top}(K_b+\sigma^2K_t)f$
+subject to $Cf=a$ has the first-order (KKT) conditions $(K_b+\sigma^2K_t)f+C^{\!\top}\lambda=0$ and
+$Cf=a$, i.e.\ the single sparse symmetric system
+\begin{equation}
+\begin{pmatrix} K_b+\sigma^2 K_t & C^{\!\top}\\ C & 0\end{pmatrix}
+\begin{pmatrix} f\\ \lambda\end{pmatrix}=\begin{pmatrix}0\\ a\end{pmatrix}.
+\end{equation}
+The energy-partition criterion carries over verbatim, with $\varphi(\sigma)$ now formed from
+the forward's flexural energy $\int(f'')^2$ and axial energy $\sigma^2\int(f')^2$; tensioning
+the forward thus balances forward \emph{curvature} against forward \emph{slope} directly.
+
+On the curve of Table~\ref{tab:data} this construction reproduces every discount factor to
+$2\times10^{-10}$ (machine precision; no-arbitrage is exact), keeps the forward positive, and
+returns a forward-space equipartition tension $\sigma^\star=6.78$. Figure~\ref{fig:fwdspace}
+compares, at a common tension, the forward implied by tensioning the yield curve with the
+forward obtained by tensioning the forward directly. The two share the front-end wiggle, which
+is genuine signal forced by the kinked short-end par data, but in the long end, where the data
+are smooth, the difference is stark: the yield-tensioned forward cliffs at twenty years, whereas
+the forward-tensioned curve is smooth there. Quantitatively, over $t>8$ years the
+forward-tensioned curve has $1{,}285$ times lower roughness $\int(f'')^2$ and a peak curvature
+at twenty years smaller by a factor of $338$, at no cost in repricing. When smooth forwards
+matter --- for forward-rate-dependent payoffs, convexity adjustments, or volatility-surface
+inputs --- this is the construction to use; the energy-partition criterion selects its tension
+exactly as before.
+
+\begin{figure}[t]\centering
+\includegraphics[width=0.78\textwidth]{fig_fwdspace.png}
+\caption{Instantaneous forward at a common tension $\sigma=4.9$. Tensioning the yield curve
+(green) produces a forward that cliffs at twenty years; tensioning the forward directly (red)
+keeps it smooth while reproducing all discount factors exactly. The cubic-on-yield forward
+(dotted) overshoots. All three agree on the data-driven front-end wiggle.}\label{fig:fwdspace}
+\end{figure}
+
+\section{Non-Uniform Tension Calibration}\label{sec:nonunif}
+A single global tension treats every segment alike, yet the segments are not: on the curve of
+Table~\ref{tab:data} the interval widths $h_i$ span more than two orders of magnitude, from one
+month to ten years. The dimensionless group that fixes a segment's shape is the product
+$\sigma h_i$, the argument of the hyperbolic functions in \eqref{eq:tspline}; under a uniform
+$\sigma$ this product ranges from $0.8$ on the shortest segment to $48.6$ on the
+$20$--$30$-year segment. The short end is therefore barely tensioned while the long end is
+pulled essentially straight.
+
+The imbalance shows cleanly in the per-segment energy fraction
+$\varphi_i = E^{(i)}_{\mathrm{bend}}/(E^{(i)}_{\mathrm{bend}}+E^{(i)}_{\mathrm{tens}})$, the
+local analogue of \eqref{eq:phi}. At the global optimum $\sigma^\star=4.86$ the fractions run
+from $0.86$ on the shortest segment down to below $0.01$ on the segments between three and
+twenty years (Figure~\ref{fig:nuphi}, green): the belly and long end carry almost no flexural
+energy --- they have been flattened to near-linearity --- while the short end stays curved.
+Equipartition holds only on average, not segment by segment.
+
+The remedy is to let the tension vary by segment. We assign a tension $\sigma_i$ to each
+interval (the non-uniform spline of Appendix~\ref{app:nonunif}) and calibrate the vector
+$\{\sigma_i\}$ so that every segment individually attains the target fraction,
+\begin{equation}
+\varphi_i(\sigma_i)=\varphi^\star\qquad\text{for all } i.
+\label{eq:segphi}
+\end{equation}
+Because the per-segment energies \eqref{eq:Eb}--\eqref{eq:Ea} and the knot second derivatives
+$\{z_i\}$ are coupled through the tridiagonal system, \eqref{eq:segphi} is solved by a short
+fixed-point iteration: holding $\{z_i\}$ fixed, each one-dimensional equation
+$\varphi_i(\sigma_i)=\varphi^\star$ is solved by bisection (each $\varphi_i$ is monotone in its
+$\sigma_i$), the non-uniform tridiagonal is then re-solved for $\{z_i\}$, and the step is
+repeated. On the data of Table~\ref{tab:data} the iteration converges in about forty steps and
+drives every $\varphi_i$ to $\tfrac12$ to machine precision (Figure~\ref{fig:nuphi}, red).
+
+\begin{figure}[t]\centering
+\includegraphics[width=0.74\textwidth]{fig_nu_phi.png}
+\caption{Per-segment energy fraction $\varphi_i$. A uniform tension (green) leaves the
+fractions scattered from $0.86$ to below $0.01$; per-segment calibration (red) equalises them
+to $\tfrac12$ on every segment.}\label{fig:nuphi}
+\end{figure}
+
+The calibrated tensions (Figure~\ref{fig:nusigma}) scale roughly as $\sigma_i\sim 1/h_i$, from
+$\sigma\approx 12$ on the shortest segment to $\sigma\approx 0.14$ in the belly, so that the
+product $\sigma_i h_i$ is compressed from the uniform $60\!:\!1$ spread into a narrow band of
+order unity across the active part of the curve. Calibration thus discovers that the natural
+tension scale is local: each segment is tensioned in proportion to its own width and curvature
+rather than by a single number imposed on the whole curve. The resulting curve
+(Figure~\ref{fig:nucurve}) restores the gentle curvature to the five-to-twenty-year belly that
+the uniform spline had straightened, while still suppressing the cubic's long-end hump. It
+remains $C^2$ and reprices every node exactly, since calibration changes only the tension
+profile and not the interpolation conditions.
+
+\begin{figure}[t]\centering
+\includegraphics[width=0.74\textwidth]{fig_nu_sigma.png}
+\caption{Calibrated per-segment tension $\sigma_i$ (red, log scale) against the uniform optimum
+(green dashed), and the dimensionless product $\sigma_i h_i$ (blue). Calibration raises the
+short-end tension and lowers the long-end tension, bringing $\sigma_i h_i$ into a narrow
+band.}\label{fig:nusigma}
+\end{figure}
+
+\begin{figure}[t]\centering
+\includegraphics[width=0.74\textwidth]{fig_nu_curve.png}
+\caption{Uniform versus per-segment-calibrated tension spline. The calibrated curve recovers
+curvature in the belly that the uniform spline flattens, while both avoid the cubic's long-end
+hump.}\label{fig:nucurve}
+\end{figure}
+
+\section{Synthesis: Non-Uniform Tension on the Forward Curve}\label{sec:fwdnu}
+The two extensions just developed are orthogonal and combine. Section~\ref{sec:fwd} makes the
+instantaneous forward the tensioned object, under area constraints that reproduce the discount
+factors; Section~\ref{sec:nonunif} lets the tension vary by segment to balance energy locally.
+Applying the second to the first gives a \emph{non-uniform tension on the forward curve}: the
+forward solves the area-constrained problem \eqref{eq:fwdmin} with a piecewise tension
+$\sigma(t)=\sigma_i$ on each interval, and the $\{\sigma_i\}$ are calibrated to per-segment
+equipartition of the forward's own energy.
+
+The forward formulation makes the calibration markedly simpler than its yield-curve counterpart.
+In the discretised problem the forward $f$ is the direct unknown, so for a \emph{fixed} $f$ the
+per-segment flexural and (unweighted) axial energies
+$B_i=\tfrac12\!\int_{t_{i-1}}^{t_i}(f'')^2$ and $A_i=\tfrac12\!\int_{t_{i-1}}^{t_i}(f')^2$ are
+quadratic forms in $f$ that do not involve $\sigma$ at all; the tension enters the segment's
+axial energy only through the multiplicative factor $\sigma_i^2$, as
+$E^{(i)}_{\mathrm{tens}}=\sigma_i^2 A_i$, while $E^{(i)}_{\mathrm{bend}}=B_i$. Write the
+per-segment fraction explicitly,
+\[
+\varphi_i(\sigma_i)=\frac{E^{(i)}_{\mathrm{bend}}}{E^{(i)}_{\mathrm{bend}}+E^{(i)}_{\mathrm{tens}}}
+=\frac{B_i}{B_i+\sigma_i^2 A_i},
+\]
+and set it to the target $\tfrac12$. Then $B_i+\sigma_i^2 A_i=2B_i$, i.e.\ $\sigma_i^2 A_i=B_i$,
+so
+\begin{equation}
+\sigma_i^{\,2}A_i=B_i\qquad\Longrightarrow\qquad \sigma_i=\sqrt{B_i/A_i},
+\label{eq:sigclosed}
+\end{equation}
+a closed-form update with no bisection required (contrast the yield-curve case of
+Section~\ref{sec:nonunif}, where the $z_i$ depend on $\sigma_i$ through the hyperbolic energies
+\eqref{eq:Eb}--\eqref{eq:Ea} and a one-dimensional root-find is needed per segment). The
+construction is a short fixed point: solve the KKT system for
+$f$ at the current $\{\sigma_i\}$, recompute $\{B_i,A_i\}$, update each $\sigma_i$ by
+\eqref{eq:sigclosed}, and repeat. On the curve of Table~\ref{tab:data} it converges in about
+forty iterations, reproduces every discount factor to $4\times10^{-11}$, keeps the forward
+positive, and drives all eleven per-segment fractions to $\tfrac12$, from the scatter of
+$0.001$ to $0.88$ left by a uniform forward tension (Figure~\ref{fig:fwdnu}, right). The
+calibrated tensions are large at the curved front end ($\sigma\approx 20$ on the
+$0.08$--$0.25$-year segment) and small on the flat long end ($\sigma\approx 0.09$ on
+$20$--$30$ years).
+
+\begin{figure}[t]\centering
+\includegraphics[width=0.96\textwidth]{fig_fwd_nonunif.png}
+\caption{Non-uniform tension on the forward curve. \emph{Left:} the uniform and
+per-segment-calibrated forwards, both smooth and both reproducing all discount factors exactly.
+\emph{Right:} per-segment forward energy fractions; calibration replaces the uniform tension's
+scatter with exact equipartition on every segment.}\label{fig:fwdnu}
+\end{figure}
+
+One feature of this combination deserves an honest statement. Per-segment equipartition is an
+energy-\emph{balance} rule, not a forward-\emph{smoothness} rule. On a near-flat long-end
+segment both $B_i$ and $A_i$ are small, and \eqref{eq:sigclosed} returns a \emph{low} tension,
+which lets the forward curve freely over that interval rather than holding it taut
+(Figure~\ref{fig:fwdnu}, left, beyond twenty years). This is the correct behaviour for energy
+balance, but a desk that prizes a stable long-end forward would impose a lower $\varphi^\star$
+there --- more tension, a straighter forward --- exactly the risk--preference dial of
+Section~\ref{sec:energy}, now exercised per segment. The unified construction thus delivers a
+$C^2$, exactly-repricing, energy-balanced forward curve in which a single interpretable
+parameter, applied globally or segment by segment, governs the whole trade-off between
+smoothness, locality, and long-end stability.
+
+\section{Multi-Curve Construction: SOFR Discounting and a Tensioned Projection Curve}\label{sec:multicurve}
+Modern fixed-income desks operate in a multi-curve world: cashflows are discounted on an
+overnight-indexed (OIS / SOFR) curve, while forward rates are read off one or more separate
+projection curves that may carry a tenor or credit basis \cite{Bianchetti,Henrard,Ametrano}. The interpolation method of this paper
+is deliberately agnostic to that architecture --- it acts \emph{downstream} of the bootstrap ---
+and we now show it in place, with OIS discounting held exact and the energy-partition tension
+applied only to the projection curve.
+
+\paragraph{Bootstrapping the OIS discount curve.} Let $S_n$ be the par rate of the OIS swap
+maturing at $T_n=n$ years (annual, unit accrual). The floating leg of an OIS pays compounded
+overnight rate and has present value $1-P(T_n)$, while the fixed leg has value
+$S_n\sum_{i=1}^n P(T_i)$. Par means these are equal:
+\begin{equation}
+S_n\sum_{i=1}^{n}P(T_i)=1-P(T_n).
+\label{eq:par}
+\end{equation}
+Writing the annuity $A_{n-1}=\sum_{i=1}^{n-1}P(T_i)$ and isolating the unknown $P(T_n)$,
+\[
+S_n\big(A_{n-1}+P(T_n)\big)=1-P(T_n)
+\;\Longrightarrow\;
+P(T_n)\big(1+S_n\big)=1-S_nA_{n-1}
+\;\Longrightarrow\;
+P(T_n)=\frac{1-S_nA_{n-1}}{1+S_n},
+\]
+a forward recursion seeded by $A_0=0$, i.e.\ $P(T_1)=1/(1+S_1)$ \cite{Ametrano}. This produces discount factors
+that reprice every input swap exactly; on the representative SOFR levels used here the maximum
+reprice error is $6\times10^{-17}$. This bootstrapped curve is the \emph{crisp} discounting
+curve and is left untouched.
+
+\paragraph{Tensioning the projection curve.} The projection curve carries a (small, illustrative)
+tenor basis $b(T)$ over the OIS zeros, $z_{\mathrm{proj}}(T_i)=z_{\mathrm{OIS}}(T_i)+b(T_i)$ with
+$z=-\ln P/T$. We build its instantaneous forward by the area-constrained construction of
+Section~\ref{sec:fwd}: the forward is a tension spline whose integral over each interval
+reproduces the projection discount factors, and $\sigma$ is fixed by the energy-partition
+criterion $\varphi(\sigma^\star)=\tfrac12$. On the data here this gives $\sigma^\star=0.73$, a
+projection forward that reproduces the projection discount factors to $1.5\times10^{-10}$ and
+stays strictly positive (minimum $3.62\%$), and that is visibly smoother than the
+cubic-in-yield forward, which overshoots at the long end where the par curve is humped by the
+negative $20$--$30$-year swap spread (Figure~\ref{fig:multicurve}).
+
+\begin{figure}[t]\centering
+\includegraphics[width=0.98\textwidth]{fig_multicurve.png}
+\caption{Multi-curve SOFR/OIS construction. \emph{Left:} the bootstrapped OIS discount zero curve
+(crisp, exact at every node) and the projection-curve nodes offset by the tenor basis.
+\emph{Right:} the projection instantaneous forward built by the area-constrained energy-partition
+tension spline (smooth, positive, reproducing the projection discount factors exactly), the
+cubic-in-yield forward (overshooting at the long end), and the OIS forward for reference. SOFR
+levels are representative of the 22-May-2026 environment; the basis is illustrative; the
+discounting bootstrap and discount-factor reproduction are exact.}\label{fig:multicurve}
+\end{figure}
+
+The example makes the architectural point concrete. Nothing in the energy-partition machinery
+touches the discounting bootstrap: the OIS curve is fixed by \eqref{eq:par}, and the tension
+spline, its energy criterion, and (if desired) the per-segment calibration of
+Section~\ref{sec:nonunif} all live entirely on the projection leg. The same construction would
+apply unchanged to a cross-currency or credit-sensitive projection curve. We are transparent
+that, because live mid-market SOFR swap quotes are subscription-gated, the par levels here are
+representative of the period rather than a specific fixing, and the tenor basis is a stylised
+ramp; the bootstrap recursion and the discount-factor reproduction are exact regardless of the
+levels chosen.
+
+\section{Risk Sensitivities and Stability of the Dial}\label{sec:risk}
+A construction is only usable on a desk if the sensitivities of the curve to its inputs are
+available cheaply and if the selected tension does not lurch as the market moves. Both follow
+analytically from the structure already in place.
+
+\paragraph{The curve delta is analytic.} The knot second derivatives solve the tridiagonal
+system $M(\sigma)\,z=b(y)$ of \eqref{eq:ttridiag}, in which the matrix $M$ depends only on
+$\sigma$ and the mesh while the right-hand side $b$ is \emph{linear} in the input rates,
+$b_i=\gamma_i-\gamma_{i-1}$ with $\gamma_k=\sigma^2(y_{k+1}-y_k)/h_k$. Differentiating,
+\begin{equation}
+\frac{\partial z}{\partial y_j}=M^{-1}\frac{\partial b}{\partial y_j},
+\qquad
+\frac{\partial b_i}{\partial y_j}=\frac{\sigma^2}{h_i}(\delta_{j,i+1}-\delta_{j,i})
+-\frac{\sigma^2}{h_{i-1}}(\delta_{j,i}-\delta_{j,i-1}),
+\label{eq:dzdy}
+\end{equation}
+which costs one back-substitution per node against the already-factored $M$, i.e.\ $O(N)$ for the
+whole Jacobian. Since the interpolant \eqref{eq:tspline} is linear in $(y,z)$, the curve delta
+$\partial f(x)/\partial y_j$ is then closed form: differentiating \eqref{eq:tspline} term by term,
+\begin{equation}
+\frac{\partial f}{\partial y_j}
+=\frac{\partial_j z_i\,\sinh(\sigma(x_{i+1}-x))+\partial_j z_{i+1}\,\sinh(\sigma(x-x_i))}{\sigma^2\sinh(\sigma h_i)}
++\Big(\delta_{ji}-\tfrac{\partial_j z_i}{\sigma^2}\Big)\frac{x_{i+1}-x}{h_i}
++\Big(\delta_{j,i+1}-\tfrac{\partial_j z_{i+1}}{\sigma^2}\Big)\frac{x-x_i}{h_i},
+\end{equation}
+where $\partial_j z\equiv\partial z/\partial y_j$. This is the exact hedge Jacobian; the
+finite-difference bump experiment of Section~\ref{sec:validation} is precisely its numerical
+shadow, and the localised triangular response seen there is the column $\partial f/\partial y_j$.
+The analytic and finite-difference Jacobians agree to $2\times10^{-11}$
+(Figure~\ref{fig:jacobian}, left). A desk thus obtains delta and gamma against every node without
+re-bootstrapping or bumping.
+
+\paragraph{The dial is a smooth function of the inputs.} The selected tension solves
+$\varphi(\sigma^\star;y)=\varphi^\star$. By the implicit function theorem,
+\begin{equation}
+\frac{\partial\sigma^\star}{\partial y_j}
+=-\frac{\partial\varphi/\partial y_j}{\partial\varphi/\partial\sigma}\Bigg|_{\sigma=\sigma^\star},
+\label{eq:dsigstar}
+\end{equation}
+where $\partial\varphi/\partial y_j$ follows from the closed-form energies \eqref{eq:Eb}--\eqref{eq:Ea}
+and \eqref{eq:dzdy}, and $\partial\varphi/\partial\sigma$ is the slope established in
+Proposition~\ref{prop:phi}. The right-hand side is finite and continuous \emph{exactly where}
+$\partial\varphi/\partial\sigma\neq0$ --- the same strict-monotonicity condition that makes
+$\sigma^\star$ unique. Hence $\sigma^\star$ is a $C^1$ function of the input rates: it cannot jump.
+On the curve of Table~\ref{tab:data}, $\partial\varphi/\partial\sigma=-0.099\neq0$, and
+\eqref{eq:dsigstar} reproduces the directly re-optimised $\sigma^\star$ to a relative error of
+$6\times10^{-5}$.
+
+\begin{figure}[t]\centering
+\includegraphics[width=0.98\textwidth]{fig_jacobian.png}
+\caption{Risk sensitivities and stability. \emph{Left:} the analytic curve delta
+$\partial f/\partial y_j$ (lines) for the five- and ten-year nodes, overlaid with finite
+differences (circles); the response is local and the two agree to $2\times10^{-11}$.
+\emph{Right:} the equipartition $\sigma^\star$ under $\pm100$\,bp parametric stress. It is exactly
+invariant to a parallel level shift (which moves the curve but not its derivatives) and varies
+smoothly and monotonically under slope and curvature shocks --- no regime jumps.}\label{fig:jacobian}
+\end{figure}
+
+Figure~\ref{fig:jacobian} (right) confirms the stability empirically. A parallel level shift
+leaves $\sigma^\star$ \emph{exactly} unchanged, because adding a constant to every rate shifts the
+curve vertically without altering $f'$ or $f''$, hence without altering either energy; slope and
+curvature shocks of $\pm100$ basis points move $\sigma^\star$ smoothly and monotonically across a
+bounded range. The dial is therefore safe to hold fixed intraday and to update slowly.
+
+Finally, a remark on the multi-curve setting of Section~\ref{sec:multicurve}: because the
+discount curve is bootstrapped independently and held fixed, the projection-curve sensitivities
+do not feed back into it. The cross-curve Jacobian is block-diagonal --- tensioning the
+projection leg leaves the discount factors untouched by construction --- so no additional
+cross-curve risk term arises from the energy-partition step.
+
+\section{Empirical Comparison and the Role of $\varphi^\star$}\label{sec:empirical}
+This section situates the method quantitatively against the interpolators a desk would actually
+consider, characterises the effect of the risk dial $\varphi^\star$, and probes robustness under
+stressed curve shapes. All numbers are computed on the real par-yield curve of
+Table~\ref{tab:data}; the benchmark methods are implemented from their published definitions.
+We are deliberately even-handed: the tension spline is not best on every axis, and the table
+makes clear precisely what it does and does not buy.
+
+\paragraph{Benchmarks.} We compare against five alternatives: the natural cubic; the Hagan--West
+monotone-convex forward scheme \cite{Hagan}; Smith--Wilson with an illustrative ultimate forward
+rate ($3.9\%$) and mean-reversion $\alpha=0.10$; log-linear discount-factor interpolation
+(equivalently a piecewise-constant instantaneous forward); and an explicit piecewise-flat forward.
+For each we measure the forward roughness $\int (f_{\mathrm{fwd}}')^2\,dt$ (a global smoothness
+penalty on the instantaneous forward), the minimum implied forward (positivity), and, where the
+method is a local interpolant for which a node bump is well defined, the $5$-year hedge-locality
+radius of Section~\ref{sec:validation}.
+
+\begin{table}[h]\centering\small
+\begin{tabular}{lccc}
+\hline
+Method & Forward roughness ($\times10^{4}$) & Min.\ implied forward & $5$y locality (yr)\\
+\hline
+Natural cubic                       & $2.03$  & $3.64\%$ & $6.66$\\
+Tension, $\varphi^\star=\tfrac12$   & $2.84$  & $3.64\%$ & $\mathbf{0.79}$\\
+Hagan--West monotone convex         & $1.84$  & $3.63\%$ & ---\\
+Smith--Wilson (UFR/$\alpha$ illustr.)& $1.44$ & $3.63\%$ & ---\\
+Log-discount (log-linear DF)        & $23.94$ & $3.66\%$ & ---\\
+Piecewise-flat forward              & $23.94$ & $3.66\%$ & ---\\
+\hline
+\end{tabular}
+\caption{Benchmark interpolation methods on the $22$-May-$2026$ curve. Forward roughness is the
+integrated squared slope of the instantaneous forward; smaller is smoother. All methods keep the
+implied forward positive on this upward curve, so positivity is not a discriminator here. The
+tension spline's decisive advantage is locality, not global smoothness.}\label{tab:bench}
+\end{table}
+
+Three honest conclusions follow. First, \emph{positivity is not a discriminator on this curve}:
+every method, including the cubic, keeps the implied forward comfortably positive, because the
+underlying data are upward-sloping. The well-known negative-forward pathology of the cubic
+appears on differently shaped curves, not this one, and we do not manufacture such a curve.
+Second, the tension spline is \emph{not} the globally smoothest forward: Smith--Wilson and
+Hagan--West both achieve lower forward roughness, because they are designed to optimise forward
+shape directly, while the piecewise-flat and log-discount methods are an order of magnitude
+rougher (their forwards are kinked or stepped). Third, and decisively, the local interpolants
+separate sharply on \emph{locality}: a $5$-year node bump propagates over $6.66$ years under the
+cubic but only $0.79$ year under the equipartition tension spline --- an eight-fold compression
+that the globally smooth methods do not provide, because Smith--Wilson and monotone-convex
+schemes are not local interpolators in the node-bump sense. The tension spline thus occupies a
+distinct point in the design space: a local, $C^2$ interpolant whose locality is tunable, rather
+than a global shape-optimiser.
+
+\paragraph{The risk dial $\varphi^\star$.} The default $\varphi^\star=\tfrac12$ is a neutral
+choice, not a claimed optimum: there is no curve-construction optimum independent of a desk's
+loss function, and the whole point of $\varphi$ is to expose the trade-off rather than hide it.
+Table~\ref{tab:phisweep} characterises the dial. Lowering $\varphi^\star$ (more tension)
+tightens locality and smooths the forward at the cost of pulling the curve toward the linear
+shape; raising it does the reverse. The dependence is smooth and monotone --- the desk reads off
+the setting that matches its own smoothness-versus-locality preference.
+
+\begin{table}[h]\centering\small
+\begin{tabular}{ccccc}
+\hline
+$\varphi^\star$ & $\sigma^\star$ & Forward roughness ($\times10^4$) & $5$y locality (yr) & Min.\ fwd\\
+\hline
+$0.3$ & $7.60$ & $3.53$ & $0.74$ & $3.64\%$\\
+$0.4$ & $6.01$ & $3.12$ & $0.76$ & $3.64\%$\\
+$0.5$ & $4.86$ & $2.84$ & $0.79$ & $3.64\%$\\
+$0.6$ & $3.94$ & $2.63$ & $0.84$ & $3.64\%$\\
+$0.7$ & $3.14$ & $2.46$ & $0.91$ & $3.64\%$\\
+\hline
+\end{tabular}
+\caption{Characterisation of the risk dial on the $22$-May-$2026$ curve. As $\varphi^\star$ rises,
+$\sigma^\star$ falls (less tension), the forward becomes smoother, and the hedge-locality radius
+widens. The monotone, gradual dependence is what makes $\varphi^\star$ a usable control rather
+than a sensitive knob.}\label{tab:phisweep}
+\end{table}
+
+\begin{figure}[t]\centering
+\includegraphics[width=0.98\textwidth]{fig_benchmark.png}
+\caption{\emph{Left:} instantaneous forwards from all six methods on the $22$-May-$2026$ curve;
+the piecewise-flat and log-discount forwards are stepped, the cubic and tension splines and the
+two global schemes are smooth. \emph{Right:} the tension forward as the dial $\varphi^\star$
+sweeps from $0.3$ to $0.7$; the curves are visually close because this curve's shape is dominated
+by the long-end feature, while the locality differences of Table~\ref{tab:phisweep} are the
+operative distinction.}\label{fig:bench}
+\end{figure}
+
+\paragraph{Stress shapes.} Finally we re-fit the equipartition criterion to stressed transforms
+of the real curve: an inverted curve (the same levels in reverse order), a steepened curve
+($+150$ basis points ramped onto the long end), and a sparse curve (the $7$- and $20$-year nodes
+removed). In every case the solver returns a well-defined $\sigma^\star$ and a strictly positive
+implied forward --- $\sigma^\star=6.35$ (inverted, min.\ forward $2.98\%$), $3.39$ (steep,
+$3.66\%$), and $5.02$ (sparse, $3.64\%$) --- confirming that the construction degrades gracefully
+away from the base case.
+
+\paragraph{Historical study, 2006--2026.} To move beyond a single date we fit the equipartition
+criterion to a long historical sample: $1{,}064$ complete weekly U.S. Treasury par-yield curves
+from 8 January 2006 to 24 May 2026, retrieved from the Federal Reserve (FRED) constant-maturity
+series, spanning the global financial crisis, the zero-interest-rate (ZIRP) period, the
+2015--2018 and 2022--2023 hiking cycles, the COVID shock, and the 2023--2024 inversion. Every
+curve is a real fixing; nothing is simulated. The accompanying retrieval module reproduces the
+sample, and the analysis below, from a single command. Three findings stand out
+(Figure~\ref{fig:history}, Table~\ref{tab:history}).
+
+First, the selected tension \emph{tracks the rate regime but does not jump}. The median
+$\sigma^\star$ falls from about $4$ in the steep pre-crisis curves of 2006--2007 to about $0.5$
+during ZIRP --- flat curves need little tension to balance their energy --- and rises again
+through the subsequent hiking cycles, with the full sample ranging from $0.2$ to $8.5$. Yet the
+week-over-week change is small: the median $|\Delta\sigma^\star|$ is $0.34$, with a $95$th
+percentile of $2.2$. This is the empirical counterpart of the $C^1$ stability proved in
+Section~\ref{sec:risk}: $\sigma^\star$ moves continuously with the market rather than lurching,
+across twenty years and every regime in the sample.
+
+Second, and most strikingly, the locality--tension law $\rho_5\sim1/\sigma^\star$ predicted by the
+Green's-function argument of Section~\ref{sec:validation} holds across the \emph{entire} history.
+The correlation between $\log\sigma^\star$ and $\log\rho_5$ over all $1{,}064$ weeks is $-0.987$,
+and the weekly points collapse onto a single curve $\rho_5\approx 2.18/\sigma^\star$ regardless of
+year or regime (Figure~\ref{fig:history}b). The inverse-screening-length interpretation, derived
+on one curve, is thus confirmed out of sample on two decades of real data.
+
+Third, the construction \emph{almost always} produces an arbitrage-free forward without any
+positivity constraint being imposed: only $2.4\%$ of the $1{,}064$ weeks exhibit any negative
+implied forward, and the most negative value over the whole history is $-0.008\%$ --- a
+rounding-level dip confined to the post-crisis and ZIRP years when the front end was pinned near
+zero. Separately, under a single global $\sigma^\star$ the per-segment energy fraction spans a
+median range of $0.92$ (from near $0$ to near $0.9$) across the sample, confirming on real data
+the segment-level imbalance that motivates the per-segment calibration of
+Section~\ref{sec:nonunif}.
+
+\begin{figure}[t]\centering
+\includegraphics[width=0.98\textwidth]{fig_history.png}
+\caption{Historical study over $1{,}064$ weekly U.S. Treasury curves, 2006--2026 (FRED).
+\emph{(a)} The equipartition tension $\sigma^\star$ through time, with rate regimes shaded; it
+tracks the regime smoothly. \emph{(b)} The $5$-year hedge-locality radius against $\sigma^\star$;
+all weeks, coloured by year, collapse onto $\rho_5\approx c/\sigma^\star$ (log-correlation
+$-0.99$), confirming the inverse-screening-length law of Section~\ref{sec:validation} out of
+sample. \emph{(c)} The distribution of $\sigma^\star$ by year.}\label{fig:history}
+\end{figure}
+
+\begin{table}[h]\centering\small
+\begin{tabular}{lccccc}
+\hline
+Regime & Period & Median $\sigma^\star$ & Median $\rho_5$ (yr) & Inverted & Neg.\ fwd.\\
+\hline
+Pre-crisis      & 2006--2007 & $3.95$ & $0.84$ & $30\%$ & $0\%$\\
+Crisis          & 2008       & $2.37$ & $1.05$ & $0\%$  & $8\%$\\
+ZIRP            & 2009--2014 & $0.53$ & $3.67$ & $0\%$  & $3\%$\\
+Hiking          & 2015--2018 & $1.43$ & $1.54$ & $0\%$  & $5\%$\\
+COVID / recovery& 2020--2021 & $0.77$ & $2.71$ & $0\%$  & $2\%$\\
+Hiking / inversion & 2022--2024 & $1.93$ & $1.20$ & $69\%$ & $0\%$\\
+\hline
+Full sample     & 2006--2026 & $1.35$ & $1.61$ & $13\%$ & $2.4\%$\\
+\hline
+\end{tabular}
+\caption{Equipartition tension and hedge locality by rate regime, $1{,}064$ weekly U.S. Treasury
+curves. ``Inverted'' is the share of weeks with the $1$-month yield above the $30$-year (a coarse
+proxy); ``Neg.\ fwd.'' is the share with any negative implied forward. The tension falls in flat
+regimes and rises in steep ones, while the locality radius moves inversely, exactly as the theory
+predicts.}\label{tab:history}
+\end{table}
+
+\paragraph{Benchmarks across regimes.} The single-curve comparison of Table~\ref{tab:bench}
+raises the obvious question of whether its conclusions survive across market environments. We
+therefore re-ran all six interpolators on each of the $1{,}064$ historical curves and recorded
+the distribution of each metric (Table~\ref{tab:benchhist}, Figure~\ref{fig:benchhist}). The
+single-curve picture holds in distribution. On \emph{forward smoothness} the tension spline sits
+in the same tight band as the cubic, Hagan--West, and Smith--Wilson (median roughness
+$1.9\times10^{-4}$, against $1.8$, $1.9$ and $1.6$ respectively), while the log-discount and
+piecewise-flat forwards are an order of magnitude rougher in every percentile --- so tension is
+competitive on smoothness without being the smoothest, exactly as on the single curve. On
+\emph{locality}, the separation is decisive and universal: the tension spline's $5$-year
+locality radius is strictly tighter than the cubic's in \emph{every one} of the $1{,}064$ weeks,
+by a median factor of $4.1$ (and from $1.4\times$ to $8.5\times$ across the $5$th--$95$th
+percentiles). The cubic's radius is a flat $6.66$ years on every curve --- its node-bump response
+is scale-invariant --- whereas the tension radius ranges from $0.8$ to $4.9$ years and is almost
+always far smaller (Figure~\ref{fig:benchhist}b). On \emph{positivity}, all the local
+interpolants behave similarly (each shows a negative implied forward in $2$--$4\%$ of weeks, all
+rounding-level and confined to the near-zero-rate years), while the stepped forwards are positive
+more often only because they are piecewise constant.
+
+\begin{table}[h]\centering\small
+\begin{tabular}{lccccc}
+\hline
+& \multicolumn{3}{c}{Forward roughness ($\times10^4$)} & \multicolumn{2}{c}{$5$y locality (yr)}\\
+Method & p5 & median & p95 & median & neg.\ fwd.\\
+\hline
+Natural cubic                     & $0.38$ & $1.77$ & $6.85$ & $6.66$ & $2.4\%$\\
+Tension ($\varphi^\star=\tfrac12$)& $0.41$ & $1.88$ & $7.70$ & $\mathbf{1.61}$ & $2.4\%$\\
+Hagan--West                       & $0.39$ & $1.92$ & $7.19$ & --- & $4.0\%$\\
+Smith--Wilson                     & $0.41$ & $1.64$ & $6.54$ & --- & $3.7\%$\\
+Log-discount                      & $4.16$ & $23.89$& $73.72$& --- & $0.5\%$\\
+Piecewise-flat forward            & $4.16$ & $23.89$& $73.72$& --- & $0.5\%$\\
+\hline
+\end{tabular}
+\caption{Distribution of each metric over $1{,}064$ weekly curves, 2006--2026. Forward-roughness
+percentiles show the tension spline in the same band as the cubic and the two global schemes, and
+far below the stepped methods. The cubic's locality radius is constant at $6.66$ years (its
+node-bump response is scale-invariant); the tension radius has median $1.61$ years and is strictly
+smaller than the cubic's in $100\%$ of weeks.}\label{tab:benchhist}
+\end{table}
+
+\begin{figure}[t]\centering
+\includegraphics[width=0.98\textwidth]{fig_bench_history.png}
+\caption{Cross-regime benchmark distributions over $1{,}064$ weekly curves. \emph{(a)} Forward
+roughness by method (log scale): the tension spline (red) lies with the cubic, Hagan--West and
+Smith--Wilson, an order of magnitude below the log-discount and piecewise-flat forwards.
+\emph{(b)} The $5$-year hedge-locality radius: the tension distribution lies entirely to the left
+of the cubic's constant $6.66$-year value, so tension is more local on every curve in the
+sample.}\label{fig:benchhist}
+\end{figure}
+
+\section{Why an Energy-Partition Tension Spline? Benefits and Applications}\label{sec:why}
+A fair question confronts any new curve-construction proposal: the market already has good
+interpolators, so why this one? We answer it directly, situating the method against current
+practice and being explicit about both its advantages and the cases in which a practitioner
+should reach for something else.
+
+\subsection{The competitive landscape}
+Four families dominate practice. \emph{Simple interpolation} --- linear on rates or log-linear
+on discount factors --- is robust and local but produces kinked, non-differentiable forwards.
+The \emph{monotone convex} method of Hagan and West~\cite{Hagan} guarantees positive,
+shape-preserving forwards and is the method the U.S. Treasury itself adopted in 2021
+\cite{TreasuryMethod}; its forwards are, however, only piecewise-defined and can exhibit flat
+spots, and it offers no continuous control over smoothness. The \emph{Smith--Wilson} method,
+mandated for Solvency~II discounting, is in fact a close cousin of the present approach: it too
+is the solution of a tensioned variational problem, and its decay parameter $\alpha$ plays
+exactly the role of our $\sigma$ --- a point that lends the energy interpretation immediate
+regulatory familiarity. Finally, parametric \emph{Nelson--Siegel--Svensson} models, used by
+central banks to publish parsimonious curves, fit four to six economically interpretable
+factors but do not reprice every instrument and are smoothing, not interpolating, devices.
+
+The energy-partition tension spline is not a wholesale replacement for these. It is an exact
+interpolant, like simple and monotone-convex interpolation and unlike NSS, but it adds what
+those interpolants lack: a single continuous parameter, with a transparent physical meaning,
+that moves the curve along the entire continuum from the smooth cubic to the local,
+shape-preserving linear limit, together with a principled, automatic rule for placing it.
+
+\subsection{What is distinctive}
+\paragraph{One model, one auditable parameter.} Rather than choosing \emph{between} methods, a
+desk chooses a \emph{point} on a one-parameter family that contains the cubic and the linear
+interpolant as its endpoints. For model governance this is decisive: a single model with a
+single parameter $\varphi^\star$ is far easier to document, validate, and reproduce than a
+patchwork of interpolation rules, and the parameter's meaning --- the fraction of stored
+elastic energy carried by curvature --- is explainable to a risk committee in one sentence.
+
+\paragraph{A principled, scale-invariant selection rule.} The chief obstacle to adopting
+tension splines has always been the absence of a defensible way to choose the tension; existing
+automatic rules~\cite{Renka} optimise constraints that do not map to a desk's preferences, and
+ad hoc energy rules depend on the units and the search range. The bending-energy fraction
+\eqref{eq:phi} is intrinsic, dimensionless, scale-invariant and monotone, so it returns a unique
+$\sigma^\star$ that does not move when rates are quoted in basis points rather than decimals.
+This selection rule, not the tension spline itself, is the paper's contribution.
+
+\paragraph{$C^2$ smoothness with controlled overshoot.} The tension spline is twice
+continuously differentiable everywhere, so the curve and --- when one tensions the forward
+curve --- the forwards are smooth, unlike the merely piecewise forwards of monotone-convex or
+linear schemes. Yet, as Figures~\ref{fig:curves} and~\ref{fig:forwards} show, raising the
+tension suppresses the spurious humps a cubic invents from flat data. The method thus occupies
+a genuine middle ground: smoothness when wanted, fidelity and locality when needed, selected by
+one dial rather than by switching models.
+
+\paragraph{Risk preference as policy, not accident.} Because $\varphi^\star$ is explicit, the
+trade-off between a smooth curve and local hedges is set deliberately, as desk or firm policy,
+and applied consistently across curves and dates, rather than emerging as an uncontrolled
+by-product of an interpolation choice.
+
+\subsection{Applications}
+The locality result of Section~\ref{sec:validation} is the most directly monetisable benefit.
+Because a perturbation of one input decays within roughly $1/\sigma$ of the node, key-rate
+durations computed on the tension curve are concentrated near the bumped tenor: a five-year
+risk shows up as five-year risk, not as a smear across the entire long end as it does under the
+cubic. This yields hedge portfolios that are smaller, cheaper, and more stable, and it reduces
+the cross-tenor leakage that inflates the apparent dimensionality of curve risk. The same
+stability suppresses the spurious profit-and-loss and value-at-risk noise that interpolation
+artefacts inject when a curve is re-struck daily. For no-arbitrage control, the tension dial
+provides a direct lever to remove negative forwards where they arise. For model governance and
+independent price verification, determinism, reproducibility, and a single documented parameter
+are attractive in their own right. And the regulatory lineage through Smith--Wilson means the
+energy formulation can be presented to supervisors in a language they already accept.
+
+\subsection{When to use something else}
+Intellectual honesty requires stating the method's limits. If all one needs is positive,
+monotone forwards with minimal machinery, the monotone-convex method is simpler and is the
+de-facto standard. If the goal is a parsimonious, economically interpretable description of the
+curve --- level, slope, curvature --- rather than exact repricing, a Nelson--Siegel--Svensson
+fit is the right tool. For Solvency~II discounting the Smith--Wilson form is prescribed,
+although the present energy reading of its $\alpha$ may still aid intuition. Tension splines
+also demand numerical care: the hyperbolic basis overflows at large $\sigma h$ and must be
+evaluated in a stabilised form, and a single global tension, as the equipartition optimum here
+illustrates, can over-tension a sparsely knotted long end while a densely knotted short end is
+still curved --- the motivation for the per-segment calibration of Section~\ref{sec:nonunif}. Used within these
+bounds, the method delivers a smooth, local, no-arbitrage curve under one transparent and
+automatically chosen parameter.
+
+
+\section{Discussion, Conclusion and Future Direction}\label{sec:discussion}
+Placing the tension spline on its variational footing as a tensioned elastic beam achieves
+three things. It \emph{derives} the governing equation \eqref{eq:euler} rather than asserting
+it; it \emph{identifies} the smoothness and length norms as the flexural and axial energies of a
+single elastic system, removing the conceptual double-counting of earlier beam-energy arguments;
+and it \emph{motivates} a selection rule, \eqref{eq:phi}, that is dimensionless, range- and
+scale-invariant, monotone (hence uniquely solvable), and equipped with a transparent
+risk--hedging dial $\varphi^\star$. On the $22$-May-$2026$ U.S. Treasury curve the rule returns
+a unique optimum ($\sigma^\star=4.86$ at equipartition) and, at that optimum, cuts the
+hedge-locality radius of the benchmark $5$-year node from $6.7$ years to $0.8$ year while
+removing the spurious long-end forward hump the cubic produces.
+
+Several limitations and extensions remain. The global-tension construction of
+Sections~\ref{sec:energy}--\ref{sec:validation} tensions the sparsely knotted long end as firmly
+as the densely knotted short end; Section~\ref{sec:nonunif} resolves this with a per-segment
+calibration that equalises the energy fraction across segments, and Section~\ref{sec:fwdnu}
+combines it with the forward-curve construction of Section~\ref{sec:fwd}. We have
+also worked within small-deflection beam theory, which is amply justified at the natural scale of
+a rate curve, where $f'$ is minute; a geometrically exact (elastica) treatment, retaining the
+arc-length element and the full curvature $f''/(1+(f')^2)^{3/2}$, would be required only if the
+axes were rescaled to comparable magnitudes, and the scale-invariance of $\varphi$ makes that
+unnecessary. Section~\ref{sec:multicurve} places the method inside a multi-curve (OIS/SOFR)
+framework, with discounting bootstrapped exactly and the tension applied to the projection
+curve; extending the consistency treatment to cross-currency and credit-sensitive bases is the
+natural continuation. Modelling rate curves by analogy with
+physical elastic systems remains, in our view, a fertile source of well-posed and
+interpretable construction rules; the present paper is one such attempt.
+
+\appendix
+\section{Non-Uniform Tension Spline}\label{app:nonunif}
+Allowing a distinct tension $\sigma_i$ on the interval $[x_i,x_{i+1}]$, the tension-spline ODE
+$f^{(\mathrm{iv})}-\sigma_i^2 f''=0$ holds segment-wise, so $f$, $f'$ and $f''$ take the forms
+\eqref{eq:tspline}--\eqref{eq:t2deriv} on each segment with $\sigma\!\to\!\sigma_i$ and
+$h\!\to\!h_i$; in particular $f''(x)=[z_i\sinh(\sigma_i(x_{i+1}-x))+z_{i+1}\sinh(\sigma_i(x-x_i))]/\sinh(\sigma_i h_i)$,
+so $f''$ is continuous at the knots by construction, with $f''(x_i)=z_i$. The unknowns
+$\{z_i\}$ are fixed by continuity of $f'$ at each interior knot $x_i$. Specialising the slope
+\eqref{eq:tderiv} to the left segment $[x_{i-1},x_i]$ (tension $\sigma_i$, width $h_{i-1}$) and
+evaluating at the right end $x=x_i$ --- where $\cosh(\sigma_i(x_i-x))=\cosh 0=1$ and
+$\cosh(\sigma_i(x-x_{i-1}))=\cosh(\sigma_i h_{i-1})$ --- gives
+\[
+f'(x_i^-)=\frac{-z_{i-1}+z_i\cosh(\sigma_i h_{i-1})}{\sigma_i\sinh(\sigma_i h_{i-1})}
++\frac{(y_i-y_{i-1})-(z_i-z_{i-1})/\sigma_i^2}{h_{i-1}} .
+\]
+Specialising instead to the right segment $[x_i,x_{i+1}]$ (tension $\sigma_{i+1}$, width $h_i$)
+and evaluating at the left end $x=x_i$ --- where now $\cosh(\sigma_{i+1}(x_{i+1}-x))=\cosh(\sigma_{i+1}h_i)$
+and $\cosh(\sigma_{i+1}(x-x_i))=1$ --- gives
+\[
+f'(x_i^+)=\frac{-z_i\cosh(\sigma_{i+1}h_i)+z_{i+1}}{\sigma_{i+1}\sinh(\sigma_{i+1}h_i)}
++\frac{(y_{i+1}-y_i)-(z_{i+1}-z_i)/\sigma_{i+1}^2}{h_i} .
+\]
+Set $f'(x_i^-)=f'(x_i^+)$ and collect the coefficient of each $z$, noting that the linear terms
+$-(z_i-z_{i-1})/(\sigma_i^2 h_{i-1})$ and $-(z_{i+1}-z_i)/(\sigma_{i+1}^2 h_i)$ each contribute to
+two coefficients. The $z_{i-1}$ terms (both from the left segment) combine as
+$-1/(\sigma_i\sinh(\sigma_i h_{i-1}))+1/(\sigma_i^2 h_{i-1})$; the $z_{i+1}$ terms (both from the
+right) as $1/(\sigma_{i+1}\sinh(\sigma_{i+1}h_i))-1/(\sigma_{i+1}^2 h_i)$ on the right side, which
+moves to the left with a sign change; and the $z_i$ terms gather one contribution from each
+segment. The $y$ terms move to the right-hand side as the centred second difference. The result
+is the tridiagonal recursion, for $i=1,\dots,n-2$,
+\begin{equation}
+\mathcal{A}_{i-1}z_{i-1}+\mathcal{A}_i z_i+\mathcal{A}_{i+1}z_{i+1}
+=\frac{y_{i+1}-y_i}{h_i}-\frac{y_i-y_{i-1}}{h_{i-1}},
+\label{eq:nonunif}
+\end{equation}
+\begin{align}
+\mathcal{A}_{i-1}&=\frac{1}{\sigma_i^2 h_{i-1}}-\frac{1}{\sigma_i\sinh(\sigma_i h_{i-1})},
+\qquad
+\mathcal{A}_{i+1}=\frac{1}{\sigma_{i+1}^2 h_i}-\frac{1}{\sigma_{i+1}\sinh(\sigma_{i+1}h_i)},\\
+\mathcal{A}_i&=\left[\frac{\cosh(\sigma_i h_{i-1})}{\sigma_i\sinh(\sigma_i h_{i-1})}-\frac{1}{\sigma_i^2 h_{i-1}}\right]
++\left[\frac{\cosh(\sigma_{i+1}h_i)}{\sigma_{i+1}\sinh(\sigma_{i+1}h_i)}-\frac{1}{\sigma_{i+1}^2 h_i}\right].
+\end{align}
+The terms $1/(\sigma^2 h)$ arise from the linear part of the slope \eqref{eq:tderiv} and must
+not be dropped. With the natural conditions $z_0=z_{n-1}=0$ the system is diagonally dominant
+and solved exactly as in the uniform case. Setting all $\sigma_i=\sigma$ and $h_i=h$ gives
+$\mathcal{A}_{i\pm1}=\sigma^{-2}\alpha$ and $\mathcal{A}_i=2\sigma^{-2}\beta$ with $\alpha,\beta$
+as in \eqref{eq:ttridiag}, so the recursion reduces to $\sigma^{-2}$ times the uniform system
+and returns the same $\{z_i\}$. The per-segment energies of Section~\ref{sec:nonunif} are then
+evaluated from \eqref{eq:Eb} and \eqref{eq:Ea} with $\sigma\to\sigma_i$, and the calibration
+\eqref{eq:segphi} is the fixed-point iteration described there.
+
+\section{Closed-Form Energy Integrals}\label{app:energy}
+Both per-segment energies follow from four elementary integrals. With $u\in[0,h]$ and the
+substitutions below they are
+\begin{align*}
+\int_0^h\sinh^2(\sigma u)\,du&=\tfrac{\sinh(2\sigma h)}{4\sigma}-\tfrac h2, &
+\int_0^h\cosh^2(\sigma u)\,du&=\tfrac{\sinh(2\sigma h)}{4\sigma}+\tfrac h2,\\
+\int_0^h\sinh(\sigma(h-u))\sinh(\sigma u)\,du&=\tfrac12\!\left(h\cosh\sigma h-\tfrac{\sinh\sigma h}{\sigma}\right), &
+\int_0^h\cosh(\sigma(h-u))\cosh(\sigma u)\,du&=\tfrac12\!\left(h\cosh\sigma h+\tfrac{\sinh\sigma h}{\sigma}\right),
+\end{align*}
+where the cross terms use $\sinh a\sinh b=\tfrac12[\cosh(a{+}b)-\cosh(a{-}b)]$ and
+$\cosh a\cosh b=\tfrac12[\cosh(a{+}b)+\cosh(a{-}b)]$ with $a{+}b=\sigma h$ constant.
+
+\emph{Flexural energy.} From \eqref{eq:t2deriv}, on $[x_i,x_{i+1}]$ with $u=x-x_i$,
+$f''=\big[z_i\sinh(\sigma(h_i-u))+z_{i+1}\sinh(\sigma u)\big]/\sinh(\sigma h_i)$. Squaring and
+integrating term by term with the first and third integrals above reproduces the per-segment
+flexural energy \eqref{eq:Eb} quoted in Section~\ref{sec:energy}:
+\[
+E^{(i)}_{\mathrm{bend}}=\frac{1}{2\sinh^2(\sigma h_i)}
+\left[(z_i^2+z_{i+1}^2)\!\left(\frac{\sinh(2\sigma h_i)}{4\sigma}-\frac{h_i}{2}\right)
++z_i z_{i+1}\!\left(h_i\cosh(\sigma h_i)-\frac{\sinh(\sigma h_i)}{\sigma}\right)\right].
+\]
+\emph{Axial energy.} From \eqref{eq:tderiv}, $f'=\big[-z_i\cosh(\sigma(h_i-u))+z_{i+1}\cosh(\sigma u)\big]/(\sigma\sinh\sigma h_i)+S_i$
+with constant slope $S_i=\big[(y_{i+1}-y_i)-(z_{i+1}-z_i)/\sigma^2\big]/h_i$. Expanding $(f')^2$
+into hyperbolic-squared, cross, and constant parts and using the second and fourth integrals,
+together with $\int_0^{h_i}\!\big[-z_i\cosh(\sigma(h_i-u))+z_{i+1}\cosh(\sigma u)\big]du
+=(z_{i+1}-z_i)\sinh(\sigma h_i)/\sigma$, gives
+\begin{equation}
+E^{(i)}_{\mathrm{tens}}
+=\frac{1}{2\sinh^2(\sigma h_i)}
+\left[(z_i^2+z_{i+1}^2)\!\left(\frac{\sinh(2\sigma h_i)}{4\sigma}+\frac{h_i}{2}\right)
+-z_i z_{i+1}\!\left(h_i\cosh(\sigma h_i)+\frac{\sinh(\sigma h_i)}{\sigma}\right)\right]
++S_i\,(z_{i+1}-z_i)+\tfrac12\sigma^2 S_i^2 h_i .
+\label{eq:Ea}
+\end{equation}
+Equations \eqref{eq:Eb} and \eqref{eq:Ea} give $\varphi(\sigma)=\sum_i E^{(i)}_{\mathrm{bend}}/\sum_i(E^{(i)}_{\mathrm{bend}}+E^{(i)}_{\mathrm{tens}})$
+in closed form, with no quadrature required; the reference implementation verifies them against
+$64$-point Gauss--Legendre quadrature to a relative error below $10^{-12}$.
+
+\section{Numerically Stable Evaluation}\label{app:stable}
+For large $\sigma h_i$ the factors $\sinh(\sigma h_i)$ and $\cosh(\sigma h_i)$ overflow, yet the
+quantities that appear are bounded \emph{ratios}. Writing $u\in[0,h]$ and factoring $e^{\sigma h}$
+from numerator and denominator,
+\begin{equation}
+\frac{\sinh(\sigma u)}{\sinh(\sigma h)}=\frac{e^{\sigma(u-h)}-e^{-\sigma(u+h)}}{1-e^{-2\sigma h}},
+\qquad
+\frac{\cosh(\sigma u)}{\sinh(\sigma h)}=\frac{e^{\sigma(u-h)}+e^{-\sigma(u+h)}}{1-e^{-2\sigma h}},
+\end{equation}
+in which every exponent is non-positive (since $0\le u\le h$), so no term exceeds unity and the
+expressions are evaluated without overflow for arbitrarily large $\sigma h$. As $\sigma h\to\infty$
+they tend to $e^{-\sigma(h-u)}$ and $e^{-\sigma(h-u)}$ respectively, recovering the
+boundary-layer behaviour used in the proof of Proposition~\ref{prop:phi}. Every spline
+evaluation in this paper uses these forms below a threshold $\sigma h<30$ and the direct
+$\sinh,\cosh$ forms above it; the energy ratios in \eqref{eq:Eb}--\eqref{eq:Ea} are likewise
+evaluated through $\coth(\sigma h)=1/\tanh(\sigma h)$ and $1/\sinh(\sigma h)$, both bounded.
+
+\begin{thebibliography}{99}
+\small
+\bibitem{Anderson} L.~Andersen. \emph{Discount curve construction with tension splines.}
+Review of Derivatives Research, 10(3):227--267, 2007.
+\bibitem{Bianchetti} M.~Bianchetti. \emph{Two curves, one price.} Risk Magazine, August 2010.
+\bibitem{Henrard} M.~Henrard. \emph{Interest Rate Modelling in the Multi-Curve Framework:
+Foundations, Evolution and Implementation.} Applied Quantitative Finance. Palgrave Macmillan, 2014.
+\bibitem{Ametrano} F.~M.~Ametrano, M.~Henrard. \emph{Everything you always wanted to know about
+multiple interest rate curve bootstrapping but were afraid to ask.} Working paper, 2014.
+\bibitem{Schweikert} D.~G.~Schweikert. \emph{An interpolation curve using a spline in tension.}
+Journal of Mathematics and Physics, 45:312--317, 1966.
+\bibitem{Cline} A.~K.~Cline. \emph{Scalar- and planar-valued curve fitting using splines under
+tension.} Communications of the ACM, 17:218--223, 1974.
+\bibitem{Costantini} P.~Costantini, B.~I.~Kvasov, C.~Manni. \emph{On discrete hyperbolic tension
+splines.} Advances in Computational Mathematics, 11(4):331--354, 1999.
+\bibitem{Hagan} P.~S.~Hagan, G.~West. \emph{Interpolation methods for curve construction.}
+Applied Mathematical Finance, 13(2):89--129, 2006.
+\bibitem{Renka} R.~J.~Renka. \emph{Interpolatory tension splines with automatic selection of
+tension factors.} SIAM J.\ Sci.\ Stat.\ Comput., 8(3):393--415, 1987.
+\bibitem{Kamada} M.~Kamada, R.~Enkhbat. \emph{Spline interpolation in piecewise constant
+tension.} SAMPTA'09, Marseille, 2009.
+\bibitem{McCulloch} J.~H.~McCulloch. \emph{Measuring the term structure of interest rates.}
+Journal of Business, 44:19--31, 1971.
+\bibitem{Tanggaard} C.~Tanggaard. \emph{Nonparametric smoothing of yield curves.}
+Review of Quantitative Finance and Accounting, 9:251--267, 1997.
+\bibitem{Fritsch} F.~N.~Fritsch, R.~E.~Carlson. \emph{Monotone piecewise cubic interpolation.}
+SIAM J.\ Numer.\ Anal., 17(2):238--246, 1980.
+\bibitem{Ron} U.~Ron. \emph{A practical guide to swap curve construction.} Bank of Canada
+Working Paper 2000-17.
+\bibitem{Kincaid} D.~Kincaid, W.~Cheney. \emph{Numerical Analysis: Mathematics of Scientific
+Computing.} American Mathematical Society.
+\bibitem{TreasuryMethod} U.S. Department of the Treasury. \emph{Treasury Par Yield Curve
+Methodology}, 2021 (monotone convex spline, effective 6-Dec-2021).
+\bibitem{H15} Board of Governors of the Federal Reserve System. \emph{Selected Interest Rates
+(H.15)}, daily release, $22$-May-$2026$.
+\end{thebibliography}
+
+\end{document}
