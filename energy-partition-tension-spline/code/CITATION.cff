@@ -26,7 +26,7 @@ keywords:
   - multi-curve SOFR/OIS
   - reproducible research
 license: MIT
-version: 2.1.1
+version: 2.1.2
 date-released: "2026-05-31"
 preferred-citation:
   type: article

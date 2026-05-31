@@ -8,6 +8,7 @@
 \usepackage{booktabs}
 \usepackage{enumitem}
 \usepackage[hidelinks]{hyperref}
+\usepackage{xurl}
 
 % ---- footer only; running header removed ----
 \pagestyle{fancy}
@@ -1313,6 +1314,14 @@ curve; extending the consistency treatment to cross-currency and credit-sensitiv
 natural continuation. Modelling rate curves by analogy with
 physical elastic systems remains, in our view, a fertile source of well-posed and
 interpretable construction rules; the present paper is one such attempt.
+
+\paragraph{Code and data availability.} A complete, reproducible reference implementation of every
+method, figure, and result in this paper --- together with the historical-study and benchmark
+tooling and the U.S. Treasury data used --- is available at
+\url{https://github.com/ajsinha/fin-engg/tree/main/energy-partition-tension-spline}.
+Running \texttt{python tension\_curve.py} regenerates the full validation report and figures; the
+accompanying retrieval module reproduces the $2006$--$2026$ historical study from public Federal
+Reserve (FRED) data.
 
 \appendix
 \section{Non-Uniform Tension Spline}\label{app:nonunif}

@@ -1,4 +1,4 @@
-# Energy-Partition Tension Spline — Complete Project Archive (v2.1.1)
+# Energy-Partition Tension Spline — Complete Project Archive (v2.1.2)
 
 Everything for the paper **"Swap Curve Construction and Optimization of the Tension Parameter:
 An Energy-Partition Formulation"** (A. Sinha): manuscripts, reproducible code, figures, and
