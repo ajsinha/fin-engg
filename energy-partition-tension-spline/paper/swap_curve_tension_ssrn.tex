@@ -1211,6 +1211,38 @@ of the cubic's constant $6.66$-year value, so tension is more local on every cur
 sample.}\label{fig:benchhist}
 \end{figure}
 
+\paragraph{Targeting a desk-specified locality profile.} A natural use of the per-segment
+machinery is to invert it: rather than calibrate to equipartition, let a desk specify a per-node
+hedge-locality \emph{profile} and solve for the tension vector that best meets it under a
+smoothness budget, as set out in the optimisation \eqref{eq:locopt} of
+Section~\ref{sec:discussion}. We report a prototype run on the curve of Table~\ref{tab:data} both
+to illustrate the workflow and to expose its limit honestly. For a profile requesting locality
+radii of $0.9$, $1.3$ and $2.0$ years at the five-, seven- and ten-year nodes, the floor
+calculation returns $\underline{\rho}\approx 0.68$, $0.91$ and $2.80$ years respectively: the
+first two targets lie above their floors and are reachable, but the ten-year target of $2.0$ years
+lies \emph{below} its $2.80$-year floor and is flagged infeasible before any optimisation, because
+the ten-year node's neighbours sit at seven and twenty years and the mesh cannot localise more
+tightly. The solver then meets the two reachable targets to within $0.06$ year while the
+infeasible node is pinned at its floor (Figure~\ref{fig:loctarget}a). Sweeping the smoothness
+weight $\lambda$ traces the achievable trade-off (Figure~\ref{fig:loctarget}b); here it is almost
+flat --- for this largely feasible profile the fit and the forward roughness vary by under half a
+percent --- so smoothness is essentially free, though a more aggressive or conflicting profile
+would show a steeper frontier. The exercise confirms the central message: targeted-locality
+construction is genuinely useful in the instrument-rich front and belly of the curve and
+mesh-limited at the sparse long end, and the method reports which targets are achievable rather
+than silently missing them.
+
+\begin{figure}[t]\centering
+\includegraphics[width=0.98\textwidth]{fig_locality_target.png}
+\caption{Targeted hedge-locality optimisation on the $22$-May-$2026$ curve. \emph{(a)} For each
+requested node, the desk target (blue) against the achieved locality (red), with the
+knot-spacing feasibility floor (dashed) and the infeasible region below it shaded: the five- and
+seven-year targets are met, while the ten-year target lies below its floor and is pinned there.
+\emph{(b)} The smoothness/fit frontier as the budget weight $\lambda$ varies; for this profile it
+is nearly flat (note the magnified axes), so improved smoothness costs almost no fit.}
+\label{fig:loctarget}
+\end{figure}
+
 \section{Why an Energy-Partition Tension Spline? Benefits and Applications}\label{sec:why}
 A fair question confronts any new curve-construction proposal: the market already has good
 interpolators, so why this one? We answer it directly, situating the method against current
@@ -1319,7 +1351,64 @@ axes were rescaled to comparable magnitudes, and the scale-invariance of $\varph
 unnecessary. Section~\ref{sec:multicurve} places the method inside a multi-curve (OIS/SOFR)
 framework, with discounting bootstrapped exactly and the tension applied to the projection
 curve; extending the consistency treatment to cross-currency and credit-sensitive bases is the
-natural continuation. Modelling rate curves by analogy with
+natural continuation.
+
+A further extension, which we have prototyped but leave for separate development, turns the dial
+around once more: \emph{targeted hedge-locality profiles via constrained tension optimisation,
+with a computable knot-spacing feasibility floor.} We sketch its theory, computational strategy,
+and prototype result.
+
+\emph{Theory.} Section~\ref{sec:nonunif} calibrates a per-segment tension to equipartition; one
+can instead let a desk specify a per-node hedge-locality profile $\rho_k^{\mathrm{target}}$ ---
+tight where its risk and instruments concentrate, looser elsewhere --- and solve for the tension
+vector $\boldsymbol{\sigma}=(\sigma_1,\dots,\sigma_m)$ that best meets it while keeping the
+forward curve smooth:
+\begin{equation}
+\min_{\boldsymbol{\sigma}>0}\;
+J(\boldsymbol{\sigma})=\sum_k w_k\big(\rho_k(\boldsymbol{\sigma})-\rho_k^{\mathrm{target}}\big)^2
++\lambda\,R(\boldsymbol{\sigma}),
+\label{eq:locopt}
+\end{equation}
+where $\rho_k$ is the hedge-locality radius at node $k$ (Section~\ref{sec:validation}), $R$ is the
+forward roughness $\int(f_{\mathrm{fwd}}')^2$, and $\lambda$ is a smoothness budget. The essential
+structural point is that, because the interpolant is $C^2$ and globally coupled, $\rho_k$ depends
+on the \emph{whole} vector $\boldsymbol{\sigma}$, not merely the adjacent segment: raising the
+tension near one node tightens its response but perturbs its neighbours. Problem
+\eqref{eq:locopt} is therefore a genuine coupled optimisation, not a node-by-node inversion of the
+scalar law $\rho\sim c/\sigma$ of Section~\ref{sec:validation}. It also admits a hard limit. The
+bumped-node response cannot decay faster than the mesh permits, so the attainable locality at node
+$k$ is bounded below by a \emph{knot-spacing floor} $\underline{\rho}_k=\lim_{\sigma\to\infty}
+\rho_k$, set by the spacing of the neighbouring knots; any target with
+$\rho_k^{\mathrm{target}}<\underline{\rho}_k$ is infeasible, and $\underline{\rho}_k$ is
+computable in advance by evaluating $\rho_k$ at large uniform tension.
+
+\emph{Computational strategy.} The floor $\underline{\rho}_k$ is computed first and infeasible
+targets are flagged, so the method states what is achievable rather than over-promising.
+Problem~\eqref{eq:locopt} is then solved over $u_i=\log\sigma_i$ (which enforces
+$\sigma_i>0$ automatically) by gradient descent. The gradient decomposes by the chain rule into
+$\partial J/\partial\sigma_i = \sum_k 2w_k(\rho_k-\rho_k^{\mathrm{target}})\,
+\partial\rho_k/\partial\sigma_i + \lambda\,\partial R/\partial\sigma_i$; the locality
+sensitivities $\partial\rho_k/\partial\sigma_i$ follow in principle from the analytic
+node-response Jacobian $\partial f/\partial y$ of Section~\ref{sec:risk}, although our present
+prototype evaluates them by finite differences. Because each $\rho_k$ requires a perturbed solve,
+the cost is $O(m)$ curve solves per gradient step; with $m\!\sim\!10$ segments this is a
+sub-minute optimisation. A convexity probe of $R(\boldsymbol{\sigma})$ along random directions
+showed no non-convex directions in our tests, consistent with a single optimum, though we do not
+claim global convexity and a production solver would use a few restarts.
+
+\emph{Prototype result.} On the curve of Table~\ref{tab:data} the construction behaves exactly as
+the theory predicts. For a desk profile requesting locality radii of $0.9$, $1.3$ and $2.0$ years
+at the five-, seven- and ten-year nodes, the floor calculation reports $\underline{\rho}\approx
+0.68$ and $0.91$ years at the five- and seven-year nodes (so those targets are reachable) but
+$\underline{\rho}\approx 2.8$ years at the ten-year node, whose neighbours sit at seven and twenty
+years --- flagging the $2.0$-year target as infeasible before any optimisation. The solver then
+meets the two reachable targets to within $0.05$ year while leaving the infeasible node at its
+floor, and the achievable smoothness/fit trade-off is traced by sweeping $\lambda$. The lesson is
+that targeted-locality construction is genuinely useful in the instrument-rich front and belly of
+the curve, and mesh-limited at the sparse long end; we regard it as an operational layer atop the
+present framework rather than a change to it. A full treatment --- analytic locality Jacobians, a
+multi-regime study of the floor, and a hedging back-test --- is left for future work. Modelling
+rate curves by analogy with
 physical elastic systems remains, in our view, a fertile source of well-posed and
 interpretable construction rules; the present paper is one such attempt.
 

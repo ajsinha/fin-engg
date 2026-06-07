@@ -101,7 +101,7 @@ def main():
     run_py(["benchmark_history.py"] + common)
 
     banner("DONE")
-    print("Use these for the paper update:")
+    print("Upload these back for the paper update:")
     print("   - tension_history.csv")
     print("   - benchmark_history.csv")
     print(f"\nTotal time: {time.time()-t0:.0f}s")

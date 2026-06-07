@@ -27,6 +27,7 @@ reproduction is exact regardless of the levels.
 | `analyze_history.py` | Summarises a `tension_history.csv` and regenerates the historical-study figure + per-year table. |
 | `benchmark_history.py` | **Run locally.** Fits all benchmark methods to every historical curve; writes per-method metrics over 2006-2026 (resumable, checkpointed). |
 | `run_all.py` | **Master script.** Runs the whole pipeline: validation, figures, and (with a FRED key) both historical studies. |
+| `locality_targeting.py` | **Prototype (experimental).** Optimises a per-segment tension vector to hit a desk-specified per-node hedge-locality profile under a forward-smoothness budget; reports a knot-spacing feasibility floor and the smoothness/fit trade-off. Runs on the built-in curve; ~8-10 min. |
 
 The core module is self-contained; the others import from it.
 
